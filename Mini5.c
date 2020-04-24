@@ -810,6 +810,7 @@ long scan_f0_f1(void)
 	    for(fx = f[0]; fx < f[1]; fx += 100)
 	    {
 			key = get_keys();
+			
 			set_frequency_ad9850(fx + f_lo[sideband]);
 			lcd_putnumber(5 * FONTWIDTH, 4 * FONTHEIGHT, fx / 100, 1, WHITE, backcolor, 1, 1);
 			sval = get_s_value();
@@ -859,14 +860,12 @@ long scan_f0_f1(void)
 			}   
 			
 			//Key handler
-			while(get_keys());
 			switch(key)
 			{
 				    case 2: return fx;
 				            break;
 				    case 3: return 0;
 				            break;        
-				    default: key = 0;
 			}	   
 			key = 0;
 			
@@ -1991,10 +1990,19 @@ int navigate_thru_item_list(int m, int maxitems, int menu_pos)
 		    tuningknob = 0;
 		}	
 		
+		//Preview settings
+		if(m == 1)
+		{
+			set_frequency_ad9850(f_vfo[cur_band][mpos] + f_lo[sideband]);
+			lcd_putnumber(FONTWIDTH * 4, FONTHEIGHT * 6, f_vfo[cur_band][mpos] / 100, 1, WHITE, backcolor, 1, 1);
+		}	
+		
 		if(m == 2)
 		{
 			set_lo(mpos);
-		}		
+		}	
+		
+			
 				
 		key = get_keys();
 	}
