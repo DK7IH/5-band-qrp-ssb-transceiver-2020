@@ -82,7 +82,7 @@
 #define MAXBANDS 5
 
 //MENU
-#define MENUSTRINGS 5
+#define MENUSTRINGS 6
 #define MENUITEMS 5
 
   //////////////////////
@@ -136,7 +136,7 @@ char *oldbuf;
 int smax = 0;
 
 //Menu
-int menu_items[MENUSTRINGS] =  {4, 1, 1, 2, 2}; 
+int menu_items[MENUSTRINGS] =  {4, 1, 1, 2, 1, 2}; 
 
 //TX amplifier preset values
 int tx_preset[6] = {0, 0, 0, 0, 0, 0};
@@ -146,6 +146,9 @@ int msgstatus = 0;
 
 //Scan
 int thresh = 5;
+
+//Splitmode
+int split = 0;
 
 /////////////////////
 //Defines for Si5351
@@ -397,6 +400,7 @@ int get_adc(int);
 int get_pa_temp(void);
 int is_mem_freq_ok(long, int);
 int get_s_value(void);
+long tune_frequency(long);
 
 //I²C
 void twi_init(void);
@@ -408,14 +412,16 @@ void twi_write(uint8_t u8data);
 int int2asc(long num, int dec, char *buf, int buflen);
 
 //Data display functions
-void show_all_data(long, int, int, int, int, int);
+void show_all_data(long, int, int, int, int, int, int);
 void show_frequency1(long, int);
+void show_frequency2(long);
 void show_sideband(int, int);
 void show_voltage(int);
 void store_vfo(int, int);
 void show_band(int, int);
 void show_txrx(int);
 void show_vfo(int, int);
+void show_split(int, int);
 void show_pa_temp(void);
 void show_msg(char*);
 void show_meter(int);
@@ -470,6 +476,7 @@ int lcd_putnumber(int, int, long, int, int, int, int, int);                     
 
 //Scanning QRG
 long scan_f0_f1(void);
+long scan_vfoa_vfob(void);
 void set_scan_threshold(void);
 
 int main(void);
@@ -762,6 +769,7 @@ void set_frequency_ad9850(long fx)
 //Scan from VFOA to VFOB or vice versa
 long scan_f0_f1(void)
 {
+	
 	int t1;
 	int key = 0;
 	int sval = 0;
@@ -828,6 +836,15 @@ long scan_f0_f1(void)
 			    show_meter(sval);
 			    key = get_keys();
 			    wait = 1;
+			    
+			    //Manual tuning	
+			    ftmp = tune_frequency(fx);
+			    if(ftmp)
+			    {
+				    fx = ftmp;
+				    set_frequency_ad9850(fx + f_lo[sideband]);
+			        lcd_putnumber(5 * FONTWIDTH, 4 * FONTHEIGHT, fx / 100, 1, WHITE, backcolor, 1, 1);
+			     }
 			}
 			
 			
@@ -850,6 +867,15 @@ long scan_f0_f1(void)
 			        {
 						runsecs10thresh = 0;
 					}	
+					
+					//Manual tuning	
+					ftmp = tune_frequency(fx);
+					if(ftmp)
+					{
+						fx = ftmp;
+						set_frequency_ad9850(fx + f_lo[sideband]);
+						lcd_putnumber(5 * FONTWIDTH, 4 * FONTHEIGHT, fx / 100, 1, WHITE, backcolor, 1, 1);
+					}
 			    }	
 			}   
 			 
@@ -858,6 +884,16 @@ long scan_f0_f1(void)
 				show_msg("Scanning...");
 			    wait = 0;
 			}   
+			
+			//Manual tuning	
+			ftmp = tune_frequency(fx);
+			if(ftmp)
+			{
+				fx = ftmp;
+				set_frequency_ad9850(fx + f_lo[sideband]);
+			    lcd_putnumber(5 * FONTWIDTH, 4 * FONTHEIGHT, fx / 100, 1, WHITE, backcolor, 1, 1);
+			}
+
 			
 			//Key handler
 			switch(key)
@@ -870,12 +906,141 @@ long scan_f0_f1(void)
 			key = 0;
 			
 		}
-	}		
+	}	
+		
 	return 0;
 }	
+
+long scan_vfoa_vfob(void)
+{
 	
+	int t1;
+	int key = 0;
+	int sval = 0;
+	long ftmp;
+	char *s = "SCANNING...";
+	char *bstr;
+	int xpos0 = (16 - strlen(s)) / 2;
+	int ypos0 = 1;
 	
-	//Scans 16 memories
+	long runsecs10thresh;
+	int msg_sent; 	
+	bstr = malloc(17);
+	for(t1 = 0; t1 < 17; t1++)
+	{
+		bstr[t1] = 0;
+	}	
+	for(t1 = 0; t1 < 16; t1++)
+	{
+		bstr[t1] = 32;
+	}	
+	
+	lcd_cls(backcolor);
+	lcd_putstring(0, ypos0 * FONTHEIGHT, bstr, WHITE, LIGHTBLUE, 1, 1);	
+	lcd_putstring(xpos0 * FONTWIDTH, ypos0 * FONTHEIGHT, s, WHITE, LIGHTBLUE, 1, 1);	
+	free(bstr);
+	
+	while(get_keys());
+	
+	draw_meter_scale(0);
+		
+	while(key != 2)
+	{
+	    for(t1  = 0; t1 < 2; t1++)
+	    {
+			key = get_keys();
+			
+			//Display frequency
+			set_frequency_ad9850(f_vfo[cur_band][t1] + f_lo[sideband]);
+			lcd_putnumber(5 * FONTWIDTH, 4 * FONTHEIGHT, f_vfo[cur_band][t1] / 100, 1, WHITE, backcolor, 1, 1);
+			sval = get_s_value();
+			show_meter(sval);
+			
+			//Display VFO letter
+			lcd_putchar(1 * FONTWIDTH, 4 * FONTHEIGHT, t1 + 65, LIGHTYELLOW, backcolor, 1, 1);
+			
+			msg_sent = 0;
+			while(sval > thresh && !key)
+			{
+				if(!msg_sent) //Just post msg once!
+				{
+				   show_msg("Stopped.");
+				   msg_sent = 1;
+				}   
+			    sval = get_s_value();
+			    show_meter(sval);
+			    key = get_keys();
+			    
+			    //Manual tuning	
+			    ftmp = tune_frequency(f_vfo[cur_band][t1]);
+			    if(ftmp)
+			    {
+				    f_vfo[cur_band][t1] = ftmp;
+				    set_frequency_ad9850(f_vfo[cur_band][t1] + f_lo[sideband]);
+			        lcd_putnumber(5 * FONTWIDTH, 4 * FONTHEIGHT, f_vfo[cur_band][t1] / 100, 1, WHITE, backcolor, 1, 1);
+			        runsecs10thresh = runseconds10;
+			     }
+			}
+		
+			
+			//Wait 3 seconds
+			runsecs10thresh = runseconds10;
+			msg_sent = 0;
+		    while(runsecs10thresh + 30 > runseconds10)
+		    {
+				if(!msg_sent) //Just post msg once!
+			    {
+			        show_msg("Waiting...");
+		            msg_sent = 1;
+		        }   
+		      
+		        key = get_keys();
+		        
+		        if(key) //Fast out!
+		        {
+					runsecs10thresh = 0;
+				}	
+					
+				//Manual tuning	
+				ftmp = tune_frequency(f_vfo[cur_band][t1]);
+				if(ftmp)
+				{
+					f_vfo[cur_band][t1] = ftmp;
+					set_frequency_ad9850(f_vfo[cur_band][t1] + f_lo[sideband]);
+					lcd_putnumber(5 * FONTWIDTH, 4 * FONTHEIGHT, f_vfo[cur_band][t1] / 100, 1, WHITE, backcolor, 1, 1);
+					runsecs10thresh = runseconds10;
+				}	
+			}   
+	 
+			
+			//Manual tuning	
+			ftmp = tune_frequency(f_vfo[cur_band][t1]);
+			if(ftmp)
+			{
+				f_vfo[cur_band][t1] = ftmp;
+				set_frequency_ad9850(f_vfo[cur_band][t1] + f_lo[sideband]);
+			    lcd_putnumber(5 * FONTWIDTH, 4 * FONTHEIGHT, f_vfo[cur_band][t1] / 100, 1, WHITE, backcolor, 1, 1);
+			}
+
+			
+			//Key handler
+			switch(key)
+			{
+				    case 2: return ((long)t1 << 28) + f_vfo[cur_band][t1]; //f=Bi0..Bit27; VFO=Bit28
+				            break;
+				    case 3: return 0;
+				            break;        
+			}	   
+			key = 0;
+			
+		}
+	}
+		
+	return 0;
+}	
+
+	
+//Scans 16 memories
 void set_scan_threshold(void)
 {
 	int key = 0;
@@ -991,6 +1156,30 @@ int is_mem_freq_ok(long f, int cband)
 	}		
 	
 }
+
+//Calc new frequency from rotary encoder
+long tune_frequency(long fx)
+{
+	long f = fx;
+	
+	//Manual tuning	
+	if(tuningknob > 2)  
+	{    
+		f += calc_tuningfactor();
+		tuningknob = 0;
+		return f;
+	}
+		
+	if(tuningknob < -2)
+	{
+		f -= calc_tuningfactor();
+		tuningknob = 0;
+		return f;
+	}
+	
+	return 0;
+}	
+
 ///////////////////////////
 //
 //         TWI
@@ -1351,7 +1540,7 @@ int int2asc(long num, int dec, char *buf, int buflen)
 //
 //////////////////////////////////
 
-void show_all_data(long f, int cband, int s, int vfo, int volts, int mtr_scale)
+void show_all_data(long f, int cband, int s, int vfo, int volts, int mtr_scale, int split_state)
 {
 	int t1;
 	int y0 = 36;
@@ -1371,6 +1560,7 @@ void show_all_data(long f, int cband, int s, int vfo, int volts, int mtr_scale)
 	show_voltage(volts);
 	show_txrx(0);
 	draw_meter_scale(mtr_scale);
+	show_split(split_state, backcolor);
 	
 }   
 
@@ -1404,6 +1594,24 @@ void show_frequency1(long f, int csize)
 		}
 	}	    
 
+}
+
+
+void show_frequency2(long f)
+{
+	int xpos, ypos = 2 * FONTHEIGHT;
+	
+	if(f < 10000000)
+	{
+		xpos = 10 * FONTWIDTH;
+	}
+	else
+	{
+		xpos = 9 * FONTWIDTH;
+	}	
+	
+	lcd_putstring(9 * FONTWIDTH, ypos, "       ", WHITE, backcolor, 1, 1);
+	lcd_putnumber(xpos, ypos, f / 100, 1, WHITE, backcolor, 1, 1);
 }
 
 void show_band(int band, int invert)
@@ -1454,21 +1662,33 @@ void show_sideband(int sb, int invert)
 	   
 }
 
+void show_split(int splt, int invert)
+{
+	int xpos = 0 * FONTWIDTH, ypos = 2 * FONTHEIGHT;
+	char *spltstr[] = {"SPLT OFF", "SPLT ON "};
+	int splitcolor[] = {LIGHTRED2, LIGHTGREEN};
+	//Write string to position
+	lcd_putstring(xpos, ypos, spltstr[splt], splitcolor[splt], backcolor, 1, 1);
+	   
+}
+
 void show_vfo(int vfo, int invert)
 {
 	int xpos = 8 * FONTWIDTH, ypos = 0;
 	char *vfostr[] = {"VFOA", "VFOB"};
-		
-	if(invert)
-	{	
-	    //Write string to position
-	    lcd_putstring(xpos, ypos, vfostr[vfo], backcolor, YELLOW, 1, 1);
-	 }
-	 else    
-	 {	
-	    //Write string to position
-	    lcd_putstring(xpos, ypos, vfostr[vfo], YELLOW, backcolor, 1, 1);
-	 }
+	
+	//Show frequency of other VFO in d
+	if(!vfo)	
+	{
+		show_frequency2(f_vfo[cur_band][1]);
+	}
+	else	
+	{
+		show_frequency2(f_vfo[cur_band][0]);
+	}
+	
+	//Write string to position
+	lcd_putstring(xpos, ypos, vfostr[vfo], YELLOW, backcolor, 1, 1);
 }
 
 
@@ -1933,6 +2153,7 @@ void print_menu_item_list(int m, int item, int invert)
 		                                       {"VFO A  ", "VFO B  ", "       ", "       ", "       "}, 
 	                                           {"LSB    ", "USB    ", "       ", "       ", "       "},
 	                                           {"f0..f1 ", "VFO A/B", "THRESH ", "       ", "       "},
+	                                           {"OFF    ", "ON     ", "       ", "       ", "       "},
 	                                           {"SET LSB", "SET USB", "TX GAIN", "       ", "       "}};
 	int t1;
     
@@ -2125,11 +2346,36 @@ long menux(long f, int c_vfo)
 		    case -1: break;
 		} 
     }	
+    
+      ////////////////
+	 //    SPLIT    //
+	////////////////
+	while(get_keys());
+	menu = 4;
+	print_menu_head("SPLIT", menu_items[menu]);	//Head outline of menu
+	print_menu_item_list(menu, 0, 1);              //Print item list in full
+	
+	//Navigate thru item list
+	result = navigate_thru_item_list(menu, menu_items[menu], split);
+	if(result > -1)
+	{
+		return(menu * 10 + result);
+	}
+	else
+	{
+		switch(result)
+		{				
+		    case -3: return -3; //Quit menu         
+		             break;
+		    case -1: break;
+		} 
+    }	
+    
 	 ///////////////////////////////////
 	//   LO SET MODE AND TX PRESET   //
 	//////////////////////////////////
 	while(get_keys());
-	menu = 4;
+	menu = 5;
 	print_menu_head("ADJUST", menu_items[menu]);	//Head outline of menu
 	print_menu_item_list(menu, -1, 0);              //Print item list in full
 	   
@@ -2158,12 +2404,13 @@ long set_lo_frequencies(int sb)
 	int key = 0, t1;
 		
 	lcd_cls(backcolor);	
-    //LO FREQ USB
+    
 	key = 0;	
-	show_frequency1(f_lo[sb], 1);
-	
+		
 	for(t1 = 0; t1 < 16; t1++)
-	lcd_putchar(t1 * FONTWIDTH, 1 * FONTHEIGHT, 32, WHITE, LIGHTBLUE, 1, 1);	
+	{
+	   lcd_putchar(t1 * FONTWIDTH, 1 * FONTHEIGHT, 32, WHITE, LIGHTBLUE, 1, 1);	
+	}   
 	lcd_putstring(2 * FONTWIDTH, 1 * FONTHEIGHT, "LO SET MODE", WHITE, LIGHTBLUE, 1, 1);	
 	
 	if(!sb)
@@ -2176,7 +2423,10 @@ long set_lo_frequencies(int sb)
 	}
 	
 	while(get_keys());
-	set_frequency_ad9850(c_freq[cur_band] + f_lo[sb]);   
+	
+	set_frequency_ad9850(f_vfo[cur_band][cur_vfo] + f_lo[sb]);   
+	si5351_set_freq(SYNTH_MS_0, f_lo[sb]);
+	show_frequency1(f_lo[sb], 1);
 	
 	while(!key)
 	{
@@ -2184,6 +2434,7 @@ long set_lo_frequencies(int sb)
 		{    
 		    f_lo[sb] += 10;
 		    tuningknob = 0;
+		    si5351_set_freq(SYNTH_MS_0, f_lo[sb]);
 			show_frequency1(f_lo[sb], 1);
 		}	
 		
@@ -2191,10 +2442,11 @@ long set_lo_frequencies(int sb)
 		{    
 		    f_lo[sb] -= 10;
 			tuningknob = 0;
+			si5351_set_freq(SYNTH_MS_0, f_lo[sb]);
 			show_frequency1(f_lo[sb], 1);
 		}	
 		
-		si5351_set_freq(SYNTH_MS_0, f_lo[sb]);
+		
 		key = get_keys();    
 	}	
 	
@@ -2206,7 +2458,7 @@ long set_lo_frequencies(int sb)
     }
     else
     {
-        return f_lo[sb];;
+        return f_lo[sb];
     }    
 }
 
@@ -2235,7 +2487,7 @@ int main(void)
     
     //TX/RX indicator
 	int txrx = 0;
-
+	
     //Output ports set        
     //SPI DDS
     DDS_DDR = (1 << PB2)|(1 << PB3)| (1 << PB4)|(1 << PB5); //SPI (PB2..PB5)         
@@ -2327,9 +2579,10 @@ int main(void)
     
     //Si5351 LO on
     set_lo(sideband);
+    si5351_set_freq(SYNTH_MS_1, 0); 
     si5351_set_freq(SYNTH_MS_2, 0); 
        
-    show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0);   
+    show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0, split);   
     
     //Load TX preset values
     for(t1 = 0; t1 < 5; t1++)
@@ -2348,23 +2601,14 @@ int main(void)
         
     for(;;) 
 	{
-		//TUNING		
-        if(tuningknob > 2)  
-		{    
-		    f_vfo[cur_band][cur_vfo] += calc_tuningfactor();
+	       
+        ftmp = tune_frequency(f_vfo[cur_band][cur_vfo]);
+        if(ftmp)
+        {
+			f_vfo[cur_band][cur_vfo] = ftmp;
 		    set_frequency_ad9850(f_vfo[cur_band][cur_vfo] + f_lo[sideband]);    
-			tuningknob = 0;
 			show_frequency1(f_vfo[cur_band][cur_vfo], 2);
-	    }
-		
-	    if(tuningknob < -2)
-		{
-		    f_vfo[cur_band][cur_vfo] -= calc_tuningfactor();
-		    set_frequency_ad9850(f_vfo[cur_band][cur_vfo] + f_lo[sideband]);    
-			tuningknob = 0;
-			show_frequency1(f_vfo[cur_band][cur_vfo], 2);
-		}
-
+		}	
         key = get_keys();    
         
         if(key == 1)
@@ -2424,26 +2668,40 @@ int main(void)
 								f_vfo[cur_band][cur_vfo] = ftmp;
 								set_frequency_ad9850(f_vfo[cur_band][cur_vfo] + f_lo[sideband]);   
 							}	
-								
-	                        break;         
+							break;         
+							
+				case 31:    ftmp = scan_vfoa_vfob();
+				            if(ftmp & (0xFFFFFFF))
+				            {
+								cur_vfo = (ftmp >> 28);
+								show_vfo(cur_vfo, backcolor);
+								f_vfo[cur_band][cur_vfo] = ftmp & 0xFFFFFFF;
+								set_frequency_ad9850(f_vfo[cur_band][cur_vfo] + f_lo[sideband]);   
+							}	
+							break;
 	                        
 	            case 32:    set_scan_threshold();
 	                        break;              
-	            case 40: 
-	            case 41:    ftmp = set_lo_frequencies(m - 40);
+	            case 40:    
+	            case 41:    split = m - 40;
+	                        show_split(split, backcolor);
+	                        break;
+	            
+	            case 50: 
+	            case 51:    ftmp = set_lo_frequencies(m - 50);
 	                        if(ftmp > 0)
 	                        {
-								f_lo[m - 40] = ftmp;     
+								f_lo[m - 50] = ftmp;     
 								set_lo(sideband);
 	                        }
 	                        break;
-	            case 42:    tx_preset_adjust();
+	            case 52:    tx_preset_adjust();
 	                        break;
 	       
 	                    
 			    
 		    }       
-		    show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0);     
+		    show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0, split);     
         }     
         
         //Store current frequency setting
@@ -2494,6 +2752,7 @@ int main(void)
 			set_frequency_ad9850(f_vfo[cur_band][cur_vfo] + f_lo[sideband]);    
 			show_frequency1(0, 2);
 			show_frequency1(f_vfo[cur_band][cur_vfo], 2);
+			show_vfo(cur_vfo, backcolor);
 			eeprom_write_byte((uint8_t*)OFF_LAST_BAND_USED, cur_band); //Store current band
 			//Load TX gain preset value
             mcp4725_set_value(tx_preset[cur_band]);
@@ -2526,7 +2785,22 @@ int main(void)
 				    draw_meter_scale(1);	 
 			        show_txrx(1);
 			        txrx = 1;
-			    }     
+			        
+			        if(split)
+			        {
+						if(cur_vfo == 0)
+						{
+			                set_frequency_ad9850(f_vfo[cur_band][1] + f_lo[sideband]);    
+			                show_frequency1(f_vfo[cur_band][1], 2);
+			            }    
+			            else
+			            {
+			                set_frequency_ad9850(f_vfo[cur_band][0] + f_lo[sideband]);    
+			                show_frequency1(f_vfo[cur_band][0], 2);
+			            }    
+			        }
+			     }       
+			    
 		    }	 
 		
 		    if(!(get_adc(7) > 1000)) //RX, cause ADC7 lo
@@ -2536,6 +2810,19 @@ int main(void)
 				    draw_meter_scale(0);
 				    show_txrx(0);
 			        txrx = 0;
+			        if(split)
+			        {
+						if(cur_vfo == 0)
+						{
+			                set_frequency_ad9850(f_vfo[cur_band][0] + f_lo[sideband]);    
+			                show_frequency1(f_vfo[cur_band][0], 2);
+			            }    
+			            else
+			            {
+			                set_frequency_ad9850(f_vfo[cur_band][1] + f_lo[sideband]);    
+			                show_frequency1(f_vfo[cur_band][1], 2);
+			            }    
+			        }
 			    }	 
 		    }
 
