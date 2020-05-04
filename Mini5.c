@@ -1694,8 +1694,7 @@ void show_vfo(int vfo, int invert)
 
 void show_pa_temp(void)
 {
-	int xpos = 11 * FONTWIDTH, ypos = FONTHEIGHT;
-	int xlen;
+	int xpos = 12 * FONTWIDTH, ypos = FONTHEIGHT;
 	int tmp = get_pa_temp();
 	int fcolor = LIGHTGREEN;
 	
@@ -1709,8 +1708,7 @@ void show_pa_temp(void)
 		fcolor = LIGHTRED;
 	}	
 	
-	xlen = lcd_putnumber(xpos, ypos, tmp, -1, fcolor, backcolor, 1, 1);
-	xpos = (11 + xlen) * FONTWIDTH;
+	xpos = (12 + lcd_putnumber(xpos, ypos, tmp, -1, fcolor, backcolor, 1, 1)) * FONTWIDTH;
 	lcd_putchar(xpos, ypos, 0x88, fcolor, backcolor, 1, 1); //°-sign
 	xpos += FONTWIDTH;
 	lcd_putchar(xpos, ypos, 'C', fcolor, backcolor, 1, 1); //C
@@ -1759,7 +1757,7 @@ void show_voltage(int v1)
 
 void show_txrx(int status)
 {
-	int xpos = 13 * FONTWIDTH, ypos = 0;
+	int xpos = 14 * FONTWIDTH, ypos = 0;
 		
 	//Write string to position
 	if(status)
@@ -1879,7 +1877,7 @@ ISR(TIMER1_COMPA_vect)
 //Calculating tuningrate from rev/time unit
 int calc_tuningfactor(void)
 {
-	return (tuningcount * (tuningcount >> 2)); 
+	return (tuningcount * (tuningcount >> 1)); 
 }	
 
 //////////////////////
@@ -1918,7 +1916,7 @@ int get_s_value(void)
 	{
 		adcv = 10;
 	}	
-	return  ((adcv * 3) >> 4);
+	return  (adcv >> 2);
 }	
 
 int get_pa_temp(void)
@@ -2470,7 +2468,7 @@ int main(void)
 	long runseconds10s2 = runseconds10;
 	long ftmp;
 		
-	backcolor = DARKBLUE2;
+	backcolor = BLACK;
         		
 	//Variables runtime
 	int key = 0;
