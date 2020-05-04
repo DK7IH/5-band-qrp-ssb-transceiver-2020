@@ -1,11 +1,13 @@
 ///////////////////////////////////////////////////////////////////  
 /*     TRX Mini5 5 band with ATMega328, AD9850, Si5351,          */
 /*                    ST7735 LCD and MCP4725 DAC                 */
+/*                  Bands: 80, 40, 20, 17 and 15m                */
+/*            http://radiotransmitter.wordpress.com              */
 ///////////////////////////////////////////////////////////////////
 /*                                                               */
 /*  Compiler:         GCC (GNU AVR C-Compiler)                   */
 /*  Author:           Peter Rachow  DK7IH                        */
-/*  Letzte Aenderung: 10.04.2020                                 */
+/*  Last update:      20202-May-4th                              */
 ///////////////////////////////////////////////////////////////////
 
   ////////////
@@ -13,26 +15,31 @@
 ////////////
 
 //O U T P U T 
-//TWI:                  PC4, PC5
-//BCD2DEC relay decoder PD0, PD1, PD2 
-//LCD PD3, PD4, PD5, PD6, PD7
+//TWI:          PC4, PC5
+//relay decoder PD0, PD1, PD2 
+//LCD:          PD3, PD4, PD5, PD6, PD7
+//AD9850 DDS:   PB2..PB5
 
 //I N P U T
 //---
 //PC0: ADC0 user keys
 //PC1: ADC1: S-Value
 //PC2: ADC2 TX Power
-//PC6: ADC6 DC Voltage
+//     ADC6 DC Voltage
+//     ADC7 TX/RX detect
+
 //PB0, PB1: Rotary encoder
+
+//See: https://radiotransmitter.files.wordpress.com/2020/04/mini5_qrp_ssb_trx_dk7ih_mini5_port_usage-1.png
 
 ////////////////////////////////////////////////////////////////////////
 
 //Si5351 oscillators usage
-//OSC0 = LO
+//OSC0 = LO 9MHz +/- sidenband offset
 //OSC1 = not used
 //OSC2: not used
 
-//EEPROM
+//EEPROM structure
 //Byte 0:  Last Band used
 //Byte 1..4 NOT USED
 //byte 5:  Last VFO used
