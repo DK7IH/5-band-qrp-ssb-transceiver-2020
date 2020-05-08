@@ -7,7 +7,7 @@
 /*                                                               */
 /*  Compiler:         GCC (GNU AVR C-Compiler)                   */
 /*  Author:           Peter Rachow  DK7IH                        */
-/*  Last update:      20202-May-4th                              */
+/*  Last update:      2020-05-08                                 */
 ///////////////////////////////////////////////////////////////////
 
   ////////////
@@ -124,8 +124,7 @@ long runseconds10msg = 0;
 long tuningcount = 0;
 
 //LO
-//long f_lo[] = {8998700, 9001500, 9000000}; //LSB/USB LO FREQUENCIES for 9MHz filter
-long f_lo[] = {8998660, 9001770, 9000000}; //LSB/USB LO FREQUENCIES for 9MHz filter
+long f_lo[] = {8998660, 9001800, 9000000}; //LSB/USB LO FREQUENCIES for 9MHz filter
 
 int sideband = 1; //Current sideband USB
 int std_sideband [] = {0, 0, 1, 1, 1}; //Standard sideband for each rf band
@@ -383,7 +382,7 @@ const unsigned char xchar[][FONTHEIGHT] PROGMEM={
 {0x00,0x00,0x00,0x00,0x00,0x86,0x99,0x61,0x00,0x00,0x00,0x00,0x00,0x00},	// 0x7E
 {0x00,0x00,0x00,0x08,0x1C,0x22,0x41,0x41,0x41,0x41,0x7F,0x00,0x00,0x00},	// 0x7F
 {0x00,0x00,0x7C,0x02,0x01,0x01,0x01,0x01,0x01,0x02,0x7C,0x10,0x20,0x30},	// 0x80
-{0x00,0x00,0x00,0x00,0x7E,0x7E,0x7E,0x7E,0x7E,0x7E,0x7E,0x00,0x00,0x00},	// 0x81 S-Meter bar block
+{0x00,0x00,0x00,0x00,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0x00,0x00,0x00,0x00},	// 0x81 S-Meter bar block
 {0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10},	// 0x82 |
 {0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00},	// 0x83 -
 {0x10,0x10,0x10,0x10,0x10,0x10,0xF0,0x00,0x00,0x00,0x00,0x00,0x00,0x00},	// 0x84 '-
@@ -1410,12 +1409,14 @@ void lcd_putchar(int x0, int y0, unsigned char ch0, unsigned int fcol, unsigned 
 	
 	for(y = 0; y < FONTHEIGHT - 1; y++)
 	{
+		ch = pgm_read_byte(&xchar[ch0 - CHAROFFSET][y]); 
 	    for(t1 = 0; t1 < sy; t1++)
 	    {
+			
 	        for(x = 0; x < FONTWIDTH; x++)
 	        {
 			    //ch = xchar[ch0][y];
-			    ch = pgm_read_byte(&xchar[ch0 - CHAROFFSET][y]);
+			    
 		        if((1 << x) & ch)
 		        {
 					for(t2 = 0; t2 < sx; t2++)
@@ -2782,15 +2783,14 @@ int main(void)
 	    if(runseconds10 > runseconds10s)
 		{
 			//TX/RX switching check
-		    //lcd_putnumber(0, 3, get_adc(7), -1, WHITE, BLACK, 1, 1);
 		    if(get_adc(7) > 1000) //TX, cause ADC7 is hi
 		    {
 			    if(!txrx)
 			    {
+					txrx = 1;
 				    draw_meter_scale(1);	 
 			        show_txrx(1);
-			        txrx = 1;
-			        
+			        			        
 			        if(split)
 			        {
 						if(cur_vfo == 0)
@@ -2812,9 +2812,10 @@ int main(void)
 		    {
 			    if(txrx)
 			    {
+				    txrx = 0;
 				    draw_meter_scale(0);
 				    show_txrx(0);
-			        txrx = 0;
+			        
 			        if(split)
 			        {
 						if(cur_vfo == 0)
