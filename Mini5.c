@@ -1400,7 +1400,6 @@ void lcd_cls(unsigned int bgcolor)
 //sx and sy define "stretch factor"
 void lcd_putchar(int x0, int y0, unsigned char ch0, unsigned int fcol, unsigned int bcol, int sx, int sy)
 {
-	
 	int x, y, t1, t2;
 	unsigned char ch;
 	
@@ -1412,11 +1411,8 @@ void lcd_putchar(int x0, int y0, unsigned char ch0, unsigned int fcol, unsigned 
 		ch = pgm_read_byte(&xchar[ch0 - CHAROFFSET][y]); 
 	    for(t1 = 0; t1 < sy; t1++)
 	    {
-			
 	        for(x = 0; x < FONTWIDTH; x++)
 	        {
-			    //ch = xchar[ch0][y];
-			    
 		        if((1 << x) & ch)
 		        {
 					for(t2 = 0; t2 < sx; t2++)
@@ -1424,7 +1420,6 @@ void lcd_putchar(int x0, int y0, unsigned char ch0, unsigned int fcol, unsigned 
 			            lcd_write_data(fcol >> 8);
 			            lcd_write_data(fcol);
 			        }    
-			        
 			    }
 	   	        else	
 		        {
