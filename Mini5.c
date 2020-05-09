@@ -263,7 +263,7 @@ void set_band(int);
 #define DARKRED      0x80C3
 
 #define LIGHTGREEN   0x27E0 //0x6E84
-#define GREEN        0x6505
+#define GREEN        0x07EA //0x6505
 #define DARKGREEN    0x3B04
 
 #define LIGHTVIOLET  0xAC19
@@ -272,8 +272,8 @@ void set_band(int);
 #define DARKVIOLET   0x48AF
 
 #define DARKYELLOW   0xB483
-#define YELLOW       0xE746
-#define LIGHTYELLOW  0xF752  //0xF7AF
+#define YELLOW       0xFF00 //0xE746
+#define LIGHTYELLOW  0xF7E0 //0xF752  //0xF7AF
 
 #define LIGHTBROWN   0xF64F
 #define BROWN        0x9323
@@ -382,7 +382,7 @@ const unsigned char xchar[][FONTHEIGHT] PROGMEM={
 {0x00,0x00,0x00,0x00,0x00,0x86,0x99,0x61,0x00,0x00,0x00,0x00,0x00,0x00},	// 0x7E
 {0x00,0x00,0x00,0x08,0x1C,0x22,0x41,0x41,0x41,0x41,0x7F,0x00,0x00,0x00},	// 0x7F
 {0x00,0x00,0x7C,0x02,0x01,0x01,0x01,0x01,0x01,0x02,0x7C,0x10,0x20,0x30},	// 0x80
-{0x00,0x00,0x00,0x00,0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,0x00,0x00,0x00,0x00},	// 0x81 S-Meter bar block
+{0x00,0x00,0x00,0x00,0xFF,0xFF,0xFF,0xFF,0x00,0x00,0x00,0x00,0x00,0x00},	// 0x81 S-Meter bar block
 {0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10,0x10},	// 0x82 |
 {0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,0x00},	// 0x83 -
 {0x10,0x10,0x10,0x10,0x10,0x10,0xF0,0x00,0x00,0x00,0x00,0x00,0x00,0x00},	// 0x84 '-
@@ -432,6 +432,7 @@ void show_pa_temp(void);
 void show_msg(char*);
 void show_meter(int);
 void draw_meter_scale(int meter_type);
+void draw_meter_bar(int, int, int);
 void clear_smax(void);
 
 //EEPROM
@@ -553,7 +554,6 @@ void tx_preset_adjust(void)
 				v1 = 0;
 			}
 			
-			
 		    tuningknob = 0;
 		    mcp4725_set_value(v1);
 		}	
@@ -565,8 +565,6 @@ void tx_preset_adjust(void)
 		tx_preset[cur_band] = v1;
 		store_tx_preset(v1, cur_band);
 	}	
-	
-	
 }
 
 void store_tx_preset(int value, int band)
@@ -697,7 +695,6 @@ void si5351_set_freq(int synth, long freq)
   si5351_write(synth + 7, (p2 & 0x000000FF));
 }
 
-
   ////////////////////////
  //    SPI DDS AD9850  //
 ////////////////////////
@@ -716,7 +713,6 @@ void spi_send_bit(int sbit)
     DDS_PORT &= ~(1 << DDS_W_CLK);
     
 }
-
 
 //Set AD9850 to desired frequency
 void set_frequency_ad9850(long fx) 
@@ -763,8 +759,7 @@ void set_frequency_ad9850(long fx)
 	}	
 	
 	//Stop  sequence
-	DDS_PORT |= (1 << DDS_FQ_UD);
-	       
+	DDS_PORT |= (1 << DDS_FQ_UD);  
 }
 
 //////////////////////
@@ -797,7 +792,6 @@ long scan_f0_f1(void)
 		bstr[t1] = 32;
 	}	
 	
-
 	for(t1 = 0; t1 < 2; t1++)
 	{
 	    f[t1] = f_vfo[cur_band][t1];
@@ -909,8 +903,7 @@ long scan_f0_f1(void)
 				    case 3: return 0;
 				            break;        
 			}	   
-			key = 0;
-			
+			key = 0;		
 		}
 	}	
 		
@@ -987,8 +980,7 @@ long scan_vfoa_vfob(void)
 			        runsecs10thresh = runseconds10;
 			     }
 			}
-		
-			
+					
 			//Wait 3 seconds
 			runsecs10thresh = runseconds10;
 			msg_sent = 0;
@@ -1017,7 +1009,6 @@ long scan_vfoa_vfob(void)
 					runsecs10thresh = runseconds10;
 				}	
 			}   
-	 
 			
 			//Manual tuning	
 			ftmp = tune_frequency(f_vfo[cur_band][t1]);
@@ -1027,7 +1018,6 @@ long scan_vfoa_vfob(void)
 				set_frequency_ad9850(f_vfo[cur_band][t1] + f_lo[sideband]);
 			    lcd_putnumber(5 * FONTWIDTH, 4 * FONTHEIGHT, f_vfo[cur_band][t1] / 100, 1, WHITE, backcolor, 1, 1);
 			}
-
 			
 			//Key handler
 			switch(key)
@@ -1037,11 +1027,9 @@ long scan_vfoa_vfob(void)
 				    case 3: return 0;
 				            break;        
 			}	   
-			key = 0;
-			
+			key = 0;	
 		}
 	}
-		
 	return 0;
 }	
 
@@ -1109,7 +1097,6 @@ void set_scan_threshold(void)
 	{
 		eeprom_write_byte((uint8_t*)138, thresh);
 	}	
-	
 }
 
 //////////////////////
@@ -1160,7 +1147,6 @@ int is_mem_freq_ok(long f, int cband)
 	{
 	    return 0;
 	}		
-	
 }
 
 //Calc new frequency from rotary encoder
@@ -1182,7 +1168,6 @@ long tune_frequency(long fx)
 		tuningknob = 0;
 		return f;
 	}
-	
 	return 0;
 }	
 
@@ -1220,8 +1205,6 @@ void twi_write(uint8_t u8data)
     TWCR = (1<<TWINT)|(1<<TWEN);
     while ((TWCR & (1<<TWINT)) == 0);
 }
-
-
 
 //Perform hardware reset to LCD
 void lcd_reset(void)
@@ -1349,8 +1332,6 @@ void lcd_init(void)
 	_delay_ms(10);
 
 	lcd_write_command(ST7735_DISPON);  //Display ON
-	
-	
 }	
 
 //Define window area for next graphic operation
@@ -1463,7 +1444,6 @@ int lcd_putnumber(int col, int row, long num, int dec, int fcolor, int bcolor, i
 	return slen;
 }
 
-
 /////////////////////////////////
 //
 // STRING FUNCTIONS
@@ -1564,13 +1544,12 @@ void show_all_data(long f, int cband, int s, int vfo, int volts, int mtr_scale, 
 	show_txrx(0);
 	draw_meter_scale(mtr_scale);
 	show_split(split_state, backcolor);
-	
 }   
 
 void show_frequency1(long f, int csize)
 {
 	int x;
-	int y = 48;
+	int y = 50;
 	
 	if(f < 10000000)
 	{
@@ -1589,16 +1568,15 @@ void show_frequency1(long f, int csize)
 	{
 		if(csize == 1)
 		{
-		    lcd_putnumber(x, y, f, 3, LIGHTYELLOW, backcolor, csize, csize);
+		    lcd_putnumber(x, y, f, 3, WHITE, backcolor, csize, csize);
 		}    
 		else
 		{
-		    lcd_putnumber(x, y, f / 100, 1, LIGHTYELLOW, backcolor, csize, csize);
+		    lcd_putnumber(x, y, f / 100, 1, WHITE, backcolor, csize, csize);
 		}
 	}	    
 
 }
-
 
 void show_frequency2(long f)
 {
@@ -1783,57 +1761,62 @@ void show_msg(char *msg)
 }	
 
 //S-Meter bargraph 
+void draw_meter_bar(int x0, int x1, int fcol)
+{
+	int t1;
+	
+	lcd_setwindow(x0 + 2, 90, x1 + 2, 94);
+	lcd_write_command(ST7735_RAMWR);
+	for(t1 = 0; t1 < ((x1 - x0) << 2) + 4; t1++)
+	{
+		lcd_write_data(fcol >> 8);
+	    lcd_write_data(fcol);
+	}
+}	
+
 void show_meter(int sv0)
 {
-    int t1, y = 6 * FONTHEIGHT;
-    int fcolor;
     int sv = sv0;
     
-    if(sv > 16)
+    if(sv > 120)
     {
-		sv = 16;
+		sv = 120;
 	}	
 				    
 	//Clear bar graph
-	for(t1 = sv; t1 < smax - 1; t1++)
-	{
-	   lcd_putchar(t1 * FONTWIDTH, y, ' ', LIGHTGREEN, backcolor, 1, 1);
-	}	
-    
-	//Draw new bar graph
-	fcolor = LIGHTGREEN;
-	for(t1 = 0; t1 < sv; t1++)
-	{
-	    if(t1 > 7)
-	    {
-			fcolor = LIGHTYELLOW;
-		}	
-	    if(t1 > 10)
-	    {
-			fcolor = LIGHTRED2;
-		}	
-		lcd_putchar(t1 * FONTWIDTH, y, 0x81, fcolor, backcolor, 1, 1);
-	}	
+	draw_meter_bar(sv, smax, backcolor);
 	
+	//Draw new bar graph in different colors
+	if(sv < 50)
+	{
+	    draw_meter_bar(0, sv, GREEN);
+	}
+	if(sv >= 50 && sv < 80)
+	{
+	    draw_meter_bar(0, 50, GREEN);
+	    draw_meter_bar(51, sv, LIGHTYELLOW);
+	}
+
+	if(sv >= 80)
+	{
+	    draw_meter_bar(0, 50, GREEN);
+	    draw_meter_bar(51, 80, LIGHTYELLOW);
+	    draw_meter_bar(81, sv, LIGHTRED2);
+	}
+    
 	if(sv > smax)
 	{
 		smax = sv;
 		runseconds10s = runseconds10;
 	}	
 	
-	sv_old = sv;
-    
+	sv_old = sv;   
 }
 
 void clear_smax(void)
 {
-	int t1, y = 6 * FONTHEIGHT;
-			    
 	//Clear bar graph
-	for(t1 = smax - 1; t1 < 16; t1++)
-	{
-	   lcd_putchar(t1 * FONTWIDTH, y, ' ', LIGHTGREEN, backcolor, 1, 1);
-	}
+	draw_meter_bar(smax - 1, 132, backcolor);
 	smax = 0;
 }
 	
@@ -1913,13 +1896,13 @@ int get_s_value(void)
 	int adcv = get_adc(1); 
 		
 	//lcd_putnumber(0 * FONTWIDTH, 2 * FONTHEIGHT, adcv, -1, WHITE, BLACK, 1, 1);	
-	adcv -= 360; //360 = minimum AGC voltage when no sig present (band noise 20m)
+	adcv -= 380; //380 = minimum AGC voltage when no sig present (band noise 20m)
 	
 	if(adcv < 10)
 	{
 		adcv = 10;
 	}	
-	return  (adcv >> 2);
+	return (adcv << 1);
 }	
 
 int get_pa_temp(void)
@@ -1930,9 +1913,8 @@ int get_pa_temp(void)
 	double temp = (rx - 815) / 8.81;
 	
 	return (int) temp;
-    
-	
 }	
+
 //////////////////////////////
 //
 //    EEPROM-Functions
@@ -2001,14 +1983,6 @@ void store_frequency(int vfo, int band, long f)
 	
 }
 
-/*
-Store VFOA (0) or VFOB(1) for given band
-//Byte 7:  Last VFO on 80
-//Byte 8:  Last VFO on 40
-//Byte 9:  Last VFO on 20
-//Byte 10: Last VFO on 15
-//Byte 11: Last VFO on 20
-*/
 int load_vfo(int xband)
 {
 	int start_adr = xband + OFF_VFO_DATA;
@@ -2040,7 +2014,6 @@ int load_band(void)
 	return(-1);	
 }	
 
-
 //Save frequency, band, VFO and sideband
 void store_current_operation(int cband, int cvfo, int sband, long frequency)
 {
@@ -2049,7 +2022,6 @@ void store_current_operation(int cband, int cvfo, int sband, long frequency)
 	eeprom_write_byte((uint8_t*)OFF_LAST_SIDEBAND_USED, (uint8_t)sband); //Store current sideband
 	store_frequency(cvfo, cband, frequency);	
 }	
-
 
 //////////////////////////////
 //
@@ -2078,7 +2050,6 @@ int get_keys(void)
     }
     return 0;
 }
-
 
   //////////
  // MENU //
@@ -2127,7 +2098,6 @@ void print_menu_head(char *head_str0, int m_items)
 	lcd_drawbox(4, 3, 13, 3 + m_items);
 	lcd_putstring(0, ypos0 * FONTHEIGHT, bstr, WHITE, LIGHTBLUE, 1, 1);	
 	lcd_putstring(xpos0 * FONTWIDTH, ypos0 * FONTHEIGHT, head_str0, WHITE, LIGHTBLUE, 1, 1);	
-	
 	
 	free(bstr);
 }
@@ -2599,7 +2569,12 @@ int main(void)
     sei();    
     
     show_msg("Mini5 DK7IH 2020");    
-        
+    
+    /*
+    draw_meter_bar(100, WHITE);
+    _delay_ms(12000);    
+    */
+         
     for(;;) 
 	{
 	       
@@ -2835,7 +2810,7 @@ int main(void)
 			else
 			{
 			    sval1 = get_adc(2); //TX PWR voltage on ADC2
-				show_meter(sval1 >> 6); //S-Meter		
+				show_meter(sval1 >> 3); //S-Meter		
 			}
 		    runseconds10s = runseconds10;
 		}    
@@ -2853,8 +2828,6 @@ int main(void)
 			runseconds10msg = runseconds10;
 			msgstatus = 0;
 		}	
-        
 	}
-	
     return 0;
 }
