@@ -7,7 +7,7 @@
 /*                                                               */
 /*  Compiler:         GCC (GNU AVR C-Compiler)                   */
 /*  Author:           Peter Rachow  DK7IH                        */
-/*  Last update:      2020-05-08                                 */
+/*  Last update:      2020-05-13                                 */
 ///////////////////////////////////////////////////////////////////
 
   ////////////
@@ -124,7 +124,7 @@ long runseconds10msg = 0;
 long tuningcount = 0;
 
 //LO
-long f_lo[] = {8998660, 9001800, 9000000}; //LSB/USB LO FREQUENCIES for 9MHz filter
+long f_lo[] = {8998510, 9001870, 9000000}; //LSB/USB LO FREQUENCIES for 9MHz filter
 
 int sideband = 1; //Current sideband USB
 int std_sideband [] = {0, 0, 1, 1, 1}; //Standard sideband for each rf band
@@ -255,11 +255,9 @@ void set_band(int);
 #define LIGHTBLUE    0x755C
 #define BLUE         0x3C19
 #define DARKBLUE     0x0A73
-#define DARKBLUE2    0x208C
 
-#define LIGHTRED     0xE882 // 0xEB2D //0xDAAB
-#define LIGHTRED2    0xFA00 // 0xEB2D //
-#define RED          0xB1A7
+#define LIGHTRED     0xFA60 //0xE882 // 0xEB2D //0xDAAB
+#define RED          0xF803 //0xB1A7
 #define DARKRED      0x80C3
 
 #define LIGHTGREEN   0x27E0 //0x6E84
@@ -272,7 +270,8 @@ void set_band(int);
 #define DARKVIOLET   0x48AF
 
 #define DARKYELLOW   0xB483
-#define YELLOW       0xFF00 //0xE746
+#define YELLOW       0xFF00 //0xE746  0xFD40
+#define YELLOW2      0xFEC0
 #define LIGHTYELLOW  0xF7E0 //0xF752  //0xF7AF
 
 #define LIGHTBROWN   0xF64F
@@ -471,14 +470,14 @@ void set_frequency_ad9850(long);
 //ST7735 LCD
 void lcd_init(void);
 void lcd_reset(void);                                    //Reset LCD
-void lcd_write(int, int);                                //Write a byte of data via SPI
 void lcd_write_command(int);                             //Send a command to LCD
 void lcd_write_data(int);                                //Send data to LCD
 void lcd_setwindow(int, int, int, int);                  //Define output window on LCD
 void lcd_setpixel(int, int, unsigned int);               //Set 1 Pixel
-void lcd_cls(unsigned int);                              //Clear LCD
+void lcd_cls0(unsigned int);                              //Clear LCD
 void lcd_putchar(int, int, unsigned char, unsigned int, unsigned int, int, int); //Write one char to LCD (double size, variable height)
 void lcd_putstring(int, int, char*, unsigned int, unsigned int, int, int);       //Write \0 terminated string to LCD (double size, variable height)
+void lcd_putstring2(int, int, char*, unsigned int, unsigned int, int);
 int lcd_putnumber(int, int, long, int, int, int, int, int);                     //Write a number (int or long) to LCD (double size, variable height)
 
 //Scanning QRG
@@ -804,7 +803,7 @@ long scan_f0_f1(void)
 		f[1] = ftmp;
 	}	
 	
-	lcd_cls(backcolor);
+	lcd_cls0(backcolor);
 	lcd_putstring(0, ypos0 * FONTHEIGHT, bstr, WHITE, LIGHTBLUE, 1, 1);	
 	lcd_putstring(xpos0 * FONTWIDTH, ypos0 * FONTHEIGHT, s, WHITE, LIGHTBLUE, 1, 1);	
 	free(bstr);
@@ -934,7 +933,7 @@ long scan_vfoa_vfob(void)
 		bstr[t1] = 32;
 	}	
 	
-	lcd_cls(backcolor);
+	lcd_cls0(backcolor);
 	lcd_putstring(0, ypos0 * FONTHEIGHT, bstr, WHITE, LIGHTBLUE, 1, 1);	
 	lcd_putstring(xpos0 * FONTWIDTH, ypos0 * FONTHEIGHT, s, WHITE, LIGHTBLUE, 1, 1);	
 	free(bstr);
@@ -1053,7 +1052,7 @@ void set_scan_threshold(void)
 	{
 		bstr[t1] = 32;
 	}	
-	lcd_cls(backcolor);
+	lcd_cls0(backcolor);
 	lcd_putstring(0, ypos0 * FONTHEIGHT, bstr, WHITE, LIGHTBLUE, 1, 1);	
 	lcd_putstring(xpos0 * FONTWIDTH, ypos0 * FONTHEIGHT, s, WHITE, LIGHTBLUE, 1, 1);	
 	free(bstr);
@@ -1206,6 +1205,9 @@ void twi_write(uint8_t u8data)
     while ((TWCR & (1<<TWINT)) == 0);
 }
 
+  ///////////////////////
+ //       L C D       //
+///////////////////////    
 //Perform hardware reset to LCD
 void lcd_reset(void)
 {
@@ -1220,35 +1222,16 @@ void lcd_reset(void)
 //Write command to LCD
 void lcd_write_command(int cmd)
 {
-	lcd_write(cmd, 0);
-}	
-
-//Write data to LCD
-void lcd_write_data(int dvalue)
-{
-	lcd_write(dvalue, 1);
-}	
-
-//SPI write data or command to LCD
-void lcd_write(int v, int data)
-{
 	int t1;
 	
-	if(data) //Data or command?
-	{
-	    LCDPORT |= LCD_DC_A0;     //Data
-	}
-	else
-	{
-	    LCDPORT &= ~(LCD_DC_A0);  //Command
-	}
+	LCDPORT &= ~(LCD_DC_A0);  //Command
 	 
     LCDPORT &= ~(LCD_CS);     //CS=0
 	
 	for(t1 = 7; t1 >= 0; t1--)
     {
 	    LCDPORT &= ~(LCD_CLOCK);  //SCL=0	
-	    if(v & (1 << t1))
+	    if(cmd & (1 << t1))
 	    {
 		    LCDPORT |= LCD_DATA;
 	    }
@@ -1260,6 +1243,32 @@ void lcd_write(int v, int data)
 	}	
 	LCDPORT |= LCD_CS;        //CS=1
 }	
+
+//Write data to LCD
+void lcd_write_data(int dvalue)
+{
+	int t1;
+	
+	LCDPORT |= LCD_DC_A0;     //Data
+	 
+    LCDPORT &= ~(LCD_CS);     //CS=0
+	
+	for(t1 = 7; t1 >= 0; t1--)
+    {
+	    LCDPORT &= ~(LCD_CLOCK);  //SCL=0	
+	    if(dvalue & (1 << t1))
+	    {
+		    LCDPORT |= LCD_DATA;
+	    }
+	    else
+	    {
+		    LCDPORT &= ~(LCD_DATA); 
+	    }
+	    LCDPORT |= LCD_CLOCK;  //SCL=1		
+	}	
+	LCDPORT |= LCD_CS;        //CS=1
+}	
+
 
 //Init LCD to vertical alignement and 16-bit color mode
 void lcd_init(void)
@@ -1359,22 +1368,32 @@ void lcd_setpixel(int x, int y, unsigned int color)
 	lcd_write_data(color);
 }
 
-//Clear LCD with background color
-void lcd_cls(unsigned int bgcolor)
+//Clear full LCD with background color
+void lcd_cls0(unsigned int bgcolor)
 {
-	int x, y;
-	
+	int t1;
 	lcd_setwindow(0, 0, 132, 132);
 	lcd_write_command(ST7735_RAMWR);		// RAM access set
 		
-    for(x = 0; x <= 132; x++)
-	{
-	    for(y = 0; y <= 132; y++)
-	    {
-            lcd_write_data(bgcolor >> 8);
-	        lcd_write_data(bgcolor);
-        }    
-    }   
+    for(t1 = 0; t1 <= 17424; t1++)
+    {
+		lcd_write_data(bgcolor >> 8);
+	    lcd_write_data(bgcolor);
+	}    
+}	
+
+//Clear part of LCD with background color
+void lcd_cls1(int x0, int y0, int x1, int y1, unsigned int bgcolor)
+{
+	int t1, sz = (x1 - x0) * (y1 - y0);
+	lcd_setwindow(x0, y0, x1, y1);
+	lcd_write_command(ST7735_RAMWR);		// RAM access set
+		
+    for(t1 = 0; t1 <= sz; t1++)
+    {
+		lcd_write_data(bgcolor >> 8);
+	    lcd_write_data(bgcolor);
+	}    
 }	
 
 //Print one character to given coordinates to the screen
@@ -1425,6 +1444,17 @@ void lcd_putstring(int x0, int y0, char *s, unsigned int fcol, unsigned int bcol
 	{
 		lcd_putchar(x + x0, y0, *(s++), fcol, bcol, xf, yf);
 		x += (FONTWIDTH * xf);
+	}	
+}
+
+void lcd_putstring2(int x0, int y0, char *s, unsigned int fcol, unsigned int bcol, int xf)
+{
+	int x = 0;
+	
+	while(*s)
+	{
+		lcd_putchar(x + x0, y0, *(s++), fcol, bcol, 1, 1);
+		x += (FONTWIDTH + xf);
 	}	
 }
 
@@ -1529,7 +1559,7 @@ void show_all_data(long f, int cband, int s, int vfo, int volts, int mtr_scale, 
 	int y0 = 36;
 	int y1 = y0 + 10 + 2 * FONTHEIGHT;
 	
-	lcd_cls(backcolor);	
+	lcd_cls0(backcolor);	
 	
 	for(t1 = 0; t1 < 16; t1++)
 	{
@@ -1647,7 +1677,7 @@ void show_split(int splt, int invert)
 {
 	int xpos = 0 * FONTWIDTH, ypos = 2 * FONTHEIGHT;
 	char *spltstr[] = {"SPLT OFF", "SPLT ON "};
-	int splitcolor[] = {LIGHTRED2, LIGHTGREEN};
+	int splitcolor[] = {LIGHTRED, LIGHTGREEN};
 	//Write string to position
 	lcd_putstring(xpos, ypos, spltstr[splt], splitcolor[splt], backcolor, 1, 1);
 	   
@@ -1791,17 +1821,17 @@ void show_meter(int sv0)
 	{
 	    draw_meter_bar(0, sv, GREEN);
 	}
-	if(sv >= 50 && sv < 80)
+	if(sv >= 65 && sv < 89)
 	{
-	    draw_meter_bar(0, 50, GREEN);
-	    draw_meter_bar(51, sv, LIGHTYELLOW);
+	    draw_meter_bar(0, 65, GREEN);
+	    draw_meter_bar(66, sv, LIGHTYELLOW);
 	}
 
-	if(sv >= 80)
+	if(sv >= 89)
 	{
-	    draw_meter_bar(0, 50, GREEN);
-	    draw_meter_bar(51, 80, LIGHTYELLOW);
-	    draw_meter_bar(81, sv, LIGHTRED2);
+	    draw_meter_bar(0, 65, GREEN);
+	    draw_meter_bar(66, 89, LIGHTYELLOW);
+	    draw_meter_bar(89, sv, LIGHTRED);
 	}
     
 	if(sv > smax)
@@ -1826,7 +1856,9 @@ void draw_meter_scale(int meter_type)
 	
 	if(!meter_type)
     {
-        lcd_putstring(0, y, "S1 3 5 7 9 +10dB", LIGHTGREEN, backcolor, 1, 1);
+        lcd_putstring2(0, y, "S13579", LIGHTGREEN, backcolor, 3); //, 1, 1);
+        lcd_putstring2(65, y, "+10", LIGHTYELLOW, backcolor, 0); //, 1, 1);
+        lcd_putstring2(89, y, "+20dB", LIGHTRED, backcolor, 0); //, 1, 1);
     }
     else
     {
@@ -1894,15 +1926,16 @@ int get_adc(int adc_channel)
 int get_s_value(void)
 {
 	int adcv = get_adc(1); 
-		
-	//lcd_putnumber(0 * FONTWIDTH, 2 * FONTHEIGHT, adcv, -1, WHITE, BLACK, 1, 1);	
-	adcv -= 380; //380 = minimum AGC voltage when no sig present (band noise 20m)
 	
-	if(adcv < 10)
+	//lcd_putnumber(0 * FONTWIDTH, 2 * FONTHEIGHT, adcv, -1, WHITE, BLACK, 1, 1);	
+		
+	adcv -= 300;	
+	if(adcv < 0)
 	{
-		adcv = 10;
+		adcv = 0;
 	}	
-	return (adcv << 1);
+	
+	return (adcv);
 }	
 
 int get_pa_temp(void)
@@ -2094,7 +2127,7 @@ void print_menu_head(char *head_str0, int m_items)
 		bstr[t1] = 32;
 	}	
 			
-	lcd_cls(backcolor);	
+	//lcd_cls0(backcolor);	
 	lcd_drawbox(4, 3, 13, 3 + m_items);
 	lcd_putstring(0, ypos0 * FONTHEIGHT, bstr, WHITE, LIGHTBLUE, 1, 1);	
 	lcd_putstring(xpos0 * FONTWIDTH, ypos0 * FONTHEIGHT, head_str0, WHITE, LIGHTBLUE, 1, 1);	
@@ -2220,6 +2253,8 @@ long menux(long f, int c_vfo)
 	
 	int result = 0;
 	int menu;
+	
+	lcd_cls0(backcolor);	
 		
 	////////////////
 	//  BAND SEL  //
@@ -2245,6 +2280,7 @@ long menux(long f, int c_vfo)
 		}
     }		
     
+    lcd_cls1(32, 28, 112, 128, backcolor);
 	
 	////////////////
 	// VFO FUNCS  //
@@ -2270,6 +2306,8 @@ long menux(long f, int c_vfo)
 		}
     }		
     
+    lcd_cls1(32, 28, 112, 128, backcolor);
+    
     ////////////////
 	// SIDEBAND  //
 	////////////////
@@ -2293,6 +2331,8 @@ long menux(long f, int c_vfo)
 		    case -1: break;
 		} 
     }		
+    
+    lcd_cls1(32, 28, 112, 128, backcolor);
     
       ////////////////
 	 //    SCAN    //
@@ -2318,6 +2358,8 @@ long menux(long f, int c_vfo)
 		} 
     }	
     
+    lcd_cls1(32, 28, 112, 128, backcolor);
+    
       ////////////////
 	 //    SPLIT    //
 	////////////////
@@ -2341,6 +2383,8 @@ long menux(long f, int c_vfo)
 		    case -1: break;
 		} 
     }	
+    
+    lcd_cls1(32, 28, 112, 128, backcolor);
     
 	 ///////////////////////////////////
 	//   LO SET MODE AND TX PRESET   //
@@ -2366,7 +2410,7 @@ long menux(long f, int c_vfo)
 		    case -1: break;
 		}
     }
-    
+        
 	return -2; //Nothing to do in main()
 }
 
@@ -2374,7 +2418,7 @@ long set_lo_frequencies(int sb)
 {
 	int key = 0, t1;
 		
-	lcd_cls(backcolor);	
+	lcd_cls0(backcolor);	
     
 	key = 0;	
 		
@@ -2506,7 +2550,7 @@ int main(void)
 	//LCD
 	lcd_reset();
 	lcd_init();
-	//lcd_cls(backcolor);	
+	//lcd_cls0(backcolor);	
 
     //VFO and LO start
     si5351_start();
