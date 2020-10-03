@@ -1,5 +1,4 @@
 ///////////////////////////////////////////////////////////////////  
-///////////////////////////////////////////////////////////////////  
 /*     TRX Mini5 5 band with ATMega328, AD9850, Si5351,          */
 /*                    ST7735 LCD and MCP4725 DAC                 */
 /*                  Bands: 80, 40, 20, 17 and 15m                */
@@ -8,7 +7,7 @@
 /*                                                               */
 /*  Compiler:         GCC (GNU AVR C-Compiler)                   */
 /*  Author:           Peter Rachow  DK7IH                        */
-/*  Last update:      2020-05-13                                 */
+/*  Last update:      2020-10-03                                 */
 ///////////////////////////////////////////////////////////////////
 
   ////////////
@@ -19,7 +18,7 @@
 //TWI:          PC4, PC5
 //relay decoder PD0, PD1, PD2 
 //LCD:          PD3, PD4, PD5, PD6, PD7
-//AD9850 DDS:   PB2..PB5
+//20dB RX ATT:  PB2
 
 //I N P U T
 //---
@@ -37,7 +36,7 @@
 
 //Si5351 oscillators usage
 //OSC0 = LO 9MHz +/- sidenband offset
-//OSC1 = not used
+//OSC1 = VFO
 //OSC2: not used
 
 //EEPROM structure
@@ -65,6 +64,7 @@
 
 //Bytes 128..137: Two bytes for each band TX gain preset defintion
 //138: Scan threshold
+//140: Attenuator setting
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -90,20 +90,39 @@
 #define MAXBANDS 5
 
 //MENU
-#define MENUSTRINGS 6
+#define MENUSTRINGS 7
 #define MENUITEMS 5
 
-  //////////////////////
- //  SPI DDS AD9850  //
-//////////////////////
-#define DDS_PORT PORTB
-#define DDS_DDR  DDRB
-#define DDS_FQ_UD 2 //green PB0
-#define DDS_SDATA 3 //white PB1
-#define DDS_W_CLK 4  //blue PB3
-#define DDS_RESETPORT PORTB
-#define DDS_RESETDDR DDRB
-#define DDS_RESETPIN 5
+//Interfrequency options
+#define IFOPTION 2
+
+#if (IFOPTION == 0)
+    //9MHz Filter 9XMF24D (box73.de)
+    #define INTERFREQUENCY 9000000
+    #define IF_LSB 8998700
+    #define IF_USB 9001800
+    #define IF_CENTER 9000000
+    long fbfo[] = {IF_LSB, IF_USB, 0}; 
+#endif  
+  
+#if (IFOPTION == 1)
+    //10.695MHz Filter 10M04DS (ex CB TRX "President Jackson")
+    #define INTERFREQUENCY 10695000 //fLSB 10692100, fUSB 10697700
+    #define IF_LSB 10694510
+    #define IF_USB 10697550
+    #define IF_CENTER 10695000
+    long fbfo[] = {IF_LSB, IF_USB, 0}; 
+#endif  
+
+#if (IFOPTION == 2)
+    //10.7MHz Filter 10MXF24D (box73.de)
+    #define INTERFREQUENCY 10700000 
+    #define IF_LSB 10698150
+    #define IF_USB 10702520
+    #define IF_CENTER -107000000
+    long fbfo[] = {IF_LSB, IF_USB, 0}; 
+#endif  
+
 
 /////////////////////////////////////
 //   Global constants & variables
@@ -125,7 +144,7 @@ long runseconds10msg = 0;
 long tuningcount = 0;
 
 //LO
-long f_lo[] = {8998700, 9001800, 9000000}; //LSB/USB LO FREQUENCIES for 9MHz filter
+long f_lo[] = {IF_LSB, IF_USB, IF_CENTER}; //LSB/USB LO FREQUENCIES for 9MHz filter
 
 int sideband = 1; //Current sideband USB
 int std_sideband [] = {0, 0, 1, 1, 1}; //Standard sideband for each rf band
@@ -143,7 +162,7 @@ char *oldbuf;
 int smax = 0;
 
 //Menu
-int menu_items[MENUSTRINGS] =  {4, 1, 1, 2, 1, 3}; 
+int menu_items[MENUSTRINGS] =  {4, 1, 1, 1, 2, 1, 3}; 
 
 //TX amplifier preset values
 int tx_preset[6] = {0, 0, 0, 0, 0, 0};
@@ -156,6 +175,9 @@ int thresh = 5;
 
 //Splitmode
 int split = 0;
+	
+//RX ATT
+int rx_att = 0;
 	
 /////////////////////
 //Defines for Si5351
@@ -408,6 +430,7 @@ int get_pa_temp(void);
 int is_mem_freq_ok(long, int);
 int get_s_value(void);
 long tune_frequency(long);
+void set_att(int);
 
 //MISC
 void e_save(void);
@@ -438,6 +461,7 @@ void show_meter(int);
 void draw_meter_scale(int meter_type);
 void draw_meter_bar(int, int, int);
 void clear_smax(void);
+void show_att(int);
 
 //EEPROM
 long load_frequency(int, int);
@@ -1116,6 +1140,19 @@ long tune_frequency(long fx)
 	return 0;
 }	
 
+//Switch RX ATT on or off
+void set_att(int status)
+{
+	if(status)
+	{
+		PORTB |= (1 << PB2);
+	}
+	else
+	{
+		PORTB &= ~(1 << PB2);
+	}	
+}	
+
 ///////////////////////////
 //
 //         TWI
@@ -1520,6 +1557,7 @@ void show_all_data(long f, int cband, int s, int vfo, int volts, int mtr_scale, 
 	show_txrx(0);
 	draw_meter_scale(mtr_scale);
 	show_split(split_state, backcolor);
+	show_att(rx_att);
 }   
 
 void show_frequency1(long f, int csize)
@@ -1669,6 +1707,24 @@ void show_pa_temp(void)
 	lcd_putchar(xpos, ypos, 0x88, fcolor, backcolor, 1, 1); //°-sign
 	xpos += FONTWIDTH;
 	lcd_putchar(xpos, ypos, 'C', fcolor, backcolor, 1, 1); //C
+}
+
+void show_att(int status)
+{
+	int xpos = 6 * FONTWIDTH, ypos = FONTHEIGHT;
+
+    int fcolor;
+    	
+	if(!status)
+	{
+		fcolor = LIGHTGRAY;
+	}
+	else
+	{
+		fcolor = LIGHTYELLOW;
+	}	
+
+	lcd_putstring(xpos, ypos, "ATT", fcolor, backcolor, 1, 1);
 }
 	
 void show_voltage(int v1)
@@ -2101,6 +2157,7 @@ void print_menu_item_list(int m, int item, int invert)
 {
 	
 	char *menu_str[MENUSTRINGS][MENUITEMS] =  {{"80m    ", "40m    ", "20m    ", "17m    ", "15m    "},
+		                                       {"OFF    ", "ON     ", "       ", "       ", "       "}, 
 		                                       {"VFO A  ", "VFO B  ", "       ", "       ", "       "}, 
 	                                           {"LSB    ", "USB    ", "       ", "       ", "       "},
 	                                           {"f0..f1 ", "VFO A/B", "THRESH ", "       ", "       "},
@@ -2163,19 +2220,23 @@ int navigate_thru_item_list(int m, int maxitems, int menu_pos)
 		}	
 		
 		//Preview settings
-		if(m == 1)
+		if(m == 1) //ATT
+		{
+			set_att(mpos);
+			//lcd_putnumber(FONTWIDTH * 4, FONTHEIGHT * 6, mpos, -1, WHITE, backcolor, 1, 1);
+		}	
+		
+		if(m == 2)  //VFO
 		{
 			set_vfo(f_vfo[cur_band][mpos] + f_lo[sideband]);
 			lcd_putnumber(FONTWIDTH * 4, FONTHEIGHT * 6, f_vfo[cur_band][mpos] / 100, 1, WHITE, backcolor, 1, 1);
 		}	
 		
-		if(m == 2)
+		if(m == 3) //Sideband
 		{
 			set_lo(mpos);
 		}	
-		
-			
-				
+						
 		key = get_keys();
 	}
 	
@@ -2197,7 +2258,6 @@ int navigate_thru_item_list(int m, int maxitems, int menu_pos)
 			
 long menux(long f, int c_vfo)
 {
-	
 	int result = 0;
 	int menu;
 	
@@ -2229,11 +2289,37 @@ long menux(long f, int c_vfo)
     
     lcd_cls1(32, 28, 112, 128, backcolor);
 	
+	/////////////
+	// RX ATT  //
+	/////////////
+	while(get_keys());
+	menu = 1;
+	print_menu_head("10 dB RX ATT", menu_items[menu]);	//Head outline of menu
+	print_menu_item_list(menu, -1, rx_att);              //Print item list in full
+	
+	//Navigate thru item list
+	result = navigate_thru_item_list(menu, menu_items[menu], rx_att);
+	if(result > -1)
+	{
+		return(menu * 10 + result);
+	}
+	else
+	{
+		switch(result)
+		{				
+		    case -3: return -3; //Quit menu         
+		             break;
+		    case -1: break;
+		}
+    }		
+    
+    lcd_cls1(32, 28, 112, 128, backcolor);
+    
 	////////////////
 	// VFO FUNCS  //
 	////////////////
 	while(get_keys());
-	menu = 1;
+	menu = 2;
 	print_menu_head("VFO SELECT", menu_items[menu]);	//Head outline of menu
 	print_menu_item_list(menu, -1, cur_vfo);              //Print item list in full
 	
@@ -2259,7 +2345,7 @@ long menux(long f, int c_vfo)
 	// SIDEBAND  //
 	////////////////
 	while(get_keys());
-	menu = 2;
+	menu = 3;
 	print_menu_head("SIDEBAND", menu_items[menu]);	//Head outline of menu
 	print_menu_item_list(menu, -1, sideband);              //Print item list in full
 	
@@ -2285,7 +2371,7 @@ long menux(long f, int c_vfo)
 	 //    SCAN    //
 	////////////////
 	while(get_keys());
-	menu = 3;
+	menu = 4;
 	print_menu_head("SCAN FUNC", menu_items[menu]);	//Head outline of menu
 	print_menu_item_list(menu, 0, 1);              //Print item list in full
 	
@@ -2311,7 +2397,7 @@ long menux(long f, int c_vfo)
 	 //    SPLIT    //
 	////////////////
 	while(get_keys());
-	menu = 4;
+	menu = 5;
 	print_menu_head("SPLIT", menu_items[menu]);	//Head outline of menu
 	print_menu_item_list(menu, 0, 1);              //Print item list in full
 	
@@ -2337,7 +2423,7 @@ long menux(long f, int c_vfo)
 	//   LO SET MODE AND TX PRESET   //
 	//////////////////////////////////
 	while(get_keys());
-	menu = 5;
+	menu = 6;
 	print_menu_head("ADJUST", menu_items[menu]);	//Head outline of menu
 	print_menu_item_list(menu, -1, 0);              //Print item list in full
 	   
@@ -2408,7 +2494,6 @@ long set_lo_frequencies(int sb)
 			show_frequency1(f_lo[sb], 1);
 		}	
 		
-		
 		key = get_keys();    
 	}	
 	
@@ -2458,14 +2543,8 @@ int main(void)
     //TX/RX indicator
 	int txrx = 0;
 		
-    //Output ports set        
-    //SPI DDS
-    DDS_DDR = (1 << PB2)|(1 << PB3)| (1 << PB4)|(1 << PB5); //SPI (PB2..PB5)         
-    DDS_RESETPORT |= (1 << DDS_RESETPIN);       //Bit set
-    _delay_ms(1);       //wait for > 20ns i. e. 1ms minimum time with _delay_s()
-	DDS_RESETPORT &= ~(1 << DDS_RESETPIN);  //Bit erase        
-
     DDRD = 0xFF;   //Relay driver 0:2, LCD 3:7
+    DDRB |= (1 << PB2); //Relay for 20dB RX ATT
              
 	//Pull-up Rs
 	PORTC = (1 << PC0); //Keys
@@ -2550,7 +2629,14 @@ int main(void)
     //Si5351 LO on
     set_lo(sideband);
     si5351_set_freq(SYNTH_MS_2, 0); 
-       
+    
+    //RX Attenuator
+    rx_att = eeprom_read_byte((uint8_t*)140);          	
+    if(rx_att < 0 || rx_att > 1)
+    {
+		rx_att = 0;
+	}
+    set_att(rx_att);
     show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0, split);   
     
     //Load TX preset values
@@ -2568,11 +2654,6 @@ int main(void)
     
     show_msg("Mini5 DK7IH 2020");    
     
-    /*
-    draw_meter_bar(100, WHITE);
-    _delay_ms(12000);    
-    */
-         
     for(;;) 
 	{
 	       
@@ -2615,10 +2696,18 @@ int main(void)
                             mcp4725_set_value(tx_preset[cur_band]);
     
 			                break;
-			            
-				  
-	            case 10: 
-	            case 11:    cur_vfo = m - 10;
+			                
+			    case 10:    rx_att = 0;
+			                set_att(rx_att);
+			                eeprom_write_byte((uint8_t*)140, rx_att);
+			                break;    
+			                       
+				case 11:    rx_att = 1;
+			                set_att(rx_att);
+			                eeprom_write_byte((uint8_t*)140, rx_att);
+			                break;  
+	            case 20: 
+	            case 21:    cur_vfo = m - 20;
 	                        show_vfo(cur_vfo, 0);
 	                        f_vfo[cur_band][cur_vfo] = load_frequency(cur_vfo, cur_band); //VFO changed
                             if(!is_mem_freq_ok(f_vfo[cur_band][cur_vfo], cur_band))	            
@@ -2630,13 +2719,13 @@ int main(void)
 			                eeprom_write_byte((uint8_t*)OFF_LAST_VFO_USED, (uint8_t)cur_vfo); //Store current VFO
 			                break;
 			     
-				case 20: 
-	            case 21:    sideband = m - 20;     
+				case 30: 
+	            case 31:    sideband = m - 30;     
 	                        set_vfo(f_vfo[cur_band][cur_vfo] + f_lo[sideband]);    			
 	                        set_lo(sideband);
 	                        break;
 	                        
-	            case 30:    ftmp = scan_f0_f1();
+	            case 40:    ftmp = scan_f0_f1();
 	                        if(is_mem_freq_ok(ftmp, cur_band)) //Freq OK => set VFO
 	                        {
 								f_vfo[cur_band][cur_vfo] = ftmp;
@@ -2644,7 +2733,7 @@ int main(void)
 							}	
 							break;         
 							
-				case 31:    ftmp = scan_vfoa_vfob();
+				case 41:    ftmp = scan_vfoa_vfob();
 				            if(ftmp & (0xFFFFFFF))
 				            {
 								cur_vfo = (ftmp >> 28);
@@ -2654,30 +2743,28 @@ int main(void)
 							}	
 							break;
 	                        
-	            case 32:    set_scan_threshold();
+	            case 42:    set_scan_threshold();
 	                        break;              
-	            case 40:    
-	            case 41:    split = m - 40;
+	            case 50:    
+	            case 51:    split = m - 50;
 	                        show_split(split, backcolor);
 	                        break;
 	            
-	            case 50: 
-	            case 51:    ftmp = set_lo_frequencies(m - 50);
+	            case 60: 
+	            case 61:    ftmp = set_lo_frequencies(m - 60);
 	                        if(ftmp > 0)
 	                        {
-								f_lo[m - 50] = ftmp;     
+								f_lo[m - 60] = ftmp;     
 								set_lo(sideband);
 	                        }
 	                        break;
 	                        
-	            case 52:    tx_preset_adjust();
+	            case 62:    tx_preset_adjust();
 	                        break;
 	       
-   	            case 53:    show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0, split);     
+   	            case 63:    show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0, split);     
    	                        e_save();
 	                        break;
-
-	                    
 			    
 		    }       
 		    show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0, split);     
@@ -2817,7 +2904,6 @@ int main(void)
 			}
 		    runseconds10s = runseconds10;
 		}    
-		
 		
 		if(runseconds10 > runseconds10s2 + 20)
 		{
