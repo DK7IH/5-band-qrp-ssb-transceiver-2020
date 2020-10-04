@@ -1,5 +1,5 @@
 ///////////////////////////////////////////////////////////////////  
-/*     TRX Mini5 5 band with ATMega328, AD9850, Si5351,          */
+/*     TRX Mini5 5 band with ATMega328, Si5351,                  */
 /*                    ST7735 LCD and MCP4725 DAC                 */
 /*                  Bands: 80, 40, 20, 17 and 15m                */
 /*            http://radiotransmitter.wordpress.com              */
@@ -18,7 +18,8 @@
 //TWI:          PC4, PC5
 //relay decoder PD0, PD1, PD2 
 //LCD:          PD3, PD4, PD5, PD6, PD7
-//20dB RX ATT:  PB2
+//10dB RX ATT:  PB2
+//AGC SET		PB4
 
 //I N P U T
 //---
@@ -34,8 +35,10 @@
 
 ////////////////////////////////////////////////////////////////////////
 
-//Si5351 oscillators usage
-//OSC0 = LO 9MHz +/- sidenband offset
+//Si5351 oscillators usage#
+963,*-963,*-963,*-ed
+//OSC0 =*-q	ay/O *-/z +/- suzjhmnq	ay+.
+idenband offset
 //OSC1 = VFO
 //OSC2: not used
 
@@ -90,7 +93,7 @@
 #define MAXBANDS 5
 
 //MENU
-#define MENUSTRINGS 7
+#define MENUSTRINGS 8
 #define MENUITEMS 5
 
 //Interfrequency options
@@ -162,7 +165,7 @@ char *oldbuf;
 int smax = 0;
 
 //Menu
-int menu_items[MENUSTRINGS] =  {4, 1, 1, 1, 2, 1, 3}; 
+int menu_items[MENUSTRINGS] =  {4, 1, 1, 1, 2, 1, 1, 3}; 
 
 //TX amplifier preset values
 int tx_preset[6] = {0, 0, 0, 0, 0, 0};
@@ -178,6 +181,9 @@ int split = 0;
 	
 //RX ATT
 int rx_att = 0;
+
+//AGC
+int agc = 0;
 	
 /////////////////////
 //Defines for Si5351
@@ -431,6 +437,7 @@ int is_mem_freq_ok(long, int);
 int get_s_value(void);
 long tune_frequency(long);
 void set_att(int);
+void set_agc(int);
 
 //MISC
 void e_save(void);
@@ -462,6 +469,7 @@ void draw_meter_scale(int meter_type);
 void draw_meter_bar(int, int, int);
 void clear_smax(void);
 void show_att(int);
+void show_agc(int);
 
 //EEPROM
 long load_frequency(int, int);
@@ -1153,6 +1161,19 @@ void set_att(int status)
 	}	
 }	
 
+//Switch RX ATT on or off
+void set_agc(int status)
+{
+	if(status)
+	{
+		PORTB &= ~(1 << PB4);
+	}
+	else
+	{
+		PORTB |= (1 << PB4);
+	}	
+}	
+
 ///////////////////////////
 //
 //         TWI
@@ -1558,6 +1579,7 @@ void show_all_data(long f, int cband, int s, int vfo, int volts, int mtr_scale, 
 	draw_meter_scale(mtr_scale);
 	show_split(split_state, backcolor);
 	show_att(rx_att);
+	show_agc(agc);
 }   
 
 void show_frequency1(long f, int csize)
@@ -1660,10 +1682,10 @@ void show_sideband(int sb, int invert)
 void show_split(int splt, int invert)
 {
 	int xpos = 0 * FONTWIDTH, ypos = 2 * FONTHEIGHT;
-	char *spltstr[] = {"SPLT OFF", "SPLT ON "};
-	int splitcolor[] = {LIGHTRED, LIGHTGREEN};
+	char *spltstr = "SPLT";
+	int splitcolor[] = {LIGHTGRAY, LIGHTRED};
 	//Write string to position
-	lcd_putstring(xpos, ypos, spltstr[splt], splitcolor[splt], backcolor, 1, 1);
+	lcd_putstring(xpos, ypos, spltstr, splitcolor[splt], backcolor, 1, 1);
 	   
 }
 
@@ -1711,7 +1733,8 @@ void show_pa_temp(void)
 
 void show_att(int status)
 {
-	int xpos = 6 * FONTWIDTH, ypos = FONTHEIGHT;
+	int xpos = 5 * FONTWIDTH, ypos = 2 * FONTHEIGHT;
+
 
     int fcolor;
     	
@@ -1725,6 +1748,24 @@ void show_att(int status)
 	}	
 
 	lcd_putstring(xpos, ypos, "ATT", fcolor, backcolor, 1, 1);
+}
+
+void show_agc(int status)
+{
+	int xpos = 6 * FONTWIDTH, ypos = FONTHEIGHT;
+	
+    int fcolor;
+    	
+	if(status)
+	{
+		fcolor = LIGHTYELLOW;
+		lcd_putstring(xpos, ypos, "FAST", fcolor, backcolor, 1, 1);
+	}
+	else
+	{
+	    fcolor = YELLOW;	
+		lcd_putstring(xpos, ypos, "SLOW", fcolor, backcolor, 1, 1);
+	}	
 }
 	
 void show_voltage(int v1)
@@ -2144,7 +2185,7 @@ void print_menu_item(char *m_str, int ypos, int invert)
 		
 	if(invert)
 	{
-		lcd_putstring(xpos1, (ypos + 3) * FONTHEIGHT, m_str, DARKBLUE, LIGHTYELLOW, 1, 1);
+		lcd_putstring(xpos1, (ypos + 3) * FONTHEIGHT, m_str, BLACK, WHITE, 1, 1);
 	}
 	else
 	{
@@ -2162,6 +2203,7 @@ void print_menu_item_list(int m, int item, int invert)
 	                                           {"LSB    ", "USB    ", "       ", "       ", "       "},
 	                                           {"f0..f1 ", "VFO A/B", "THRESH ", "       ", "       "},
 	                                           {"OFF    ", "ON     ", "       ", "       ", "       "},
+	                                           {"FAST   ", "SLOW   ", "       ", "       ", "       "},
 	                                           {"SET LSB", "SET USB", "TX GAIN", "SLEEP  ", "       "}};
 	int t1;
     
@@ -2220,26 +2262,24 @@ int navigate_thru_item_list(int m, int maxitems, int menu_pos)
 		}	
 		
 		//Preview settings
-		if(m == 1) //ATT
+		switch(m)
 		{
-			set_att(mpos);
-			//lcd_putnumber(FONTWIDTH * 4, FONTHEIGHT * 6, mpos, -1, WHITE, backcolor, 1, 1);
-		}	
+			case 1:	set_att(mpos);
+			        break;
+			        
+			case 2:  //VFO
+			        set_vfo(f_vfo[cur_band][mpos] + f_lo[sideband]);
+			        lcd_putnumber(FONTWIDTH * 4, FONTHEIGHT * 6, f_vfo[cur_band][mpos] / 100, 1, WHITE, backcolor, 1, 1);
+			        break;
+			        
+			case 3: set_lo(mpos);
+			        break;      
 		
-		if(m == 2)  //VFO
-		{
-			set_vfo(f_vfo[cur_band][mpos] + f_lo[sideband]);
-			lcd_putnumber(FONTWIDTH * 4, FONTHEIGHT * 6, f_vfo[cur_band][mpos] / 100, 1, WHITE, backcolor, 1, 1);
-		}	
-		
-		if(m == 3) //Sideband
-		{
-			set_lo(mpos);
-		}	
-						
-		key = get_keys();
+		    case 6: set_agc(mpos); //AGC
+		            break;
+	    }
+	    key = get_keys();
 	}
-	
 	set_lo(sideband);
 		
 	while(get_keys());
@@ -2294,7 +2334,7 @@ long menux(long f, int c_vfo)
 	/////////////
 	while(get_keys());
 	menu = 1;
-	print_menu_head("10 dB RX ATT", menu_items[menu]);	//Head outline of menu
+	print_menu_head("10dB RX ATT", menu_items[menu]);	//Head outline of menu
 	print_menu_item_list(menu, -1, rx_att);              //Print item list in full
 	
 	//Navigate thru item list
@@ -2419,11 +2459,38 @@ long menux(long f, int c_vfo)
     
     lcd_cls1(32, 28, 112, 128, backcolor);
     
+    /////////////
+	//   AGC   //
+	/////////////
+	while(get_keys());
+	menu = 6;
+	print_menu_head("AGC HOLD", menu_items[menu]);	//Head outline of menu
+	print_menu_item_list(menu, -1, agc);              //Print item list in full
+	
+	//Navigate thru item list
+	result = navigate_thru_item_list(menu, menu_items[menu], agc);
+	if(result > -1)
+	{
+		return(menu * 10 + result);
+	}
+	else
+	{
+		switch(result)
+		{				
+		    case -3: return -3; //Quit menu         
+		             break;
+		    case -1: break;
+		}
+    }		
+    
+    lcd_cls1(32, 28, 112, 128, backcolor);
+    
+    
 	 ///////////////////////////////////
 	//   LO SET MODE AND TX PRESET   //
 	//////////////////////////////////
 	while(get_keys());
-	menu = 6;
+	menu = 7;
 	print_menu_head("ADJUST", menu_items[menu]);	//Head outline of menu
 	print_menu_item_list(menu, -1, 0);              //Print item list in full
 	   
@@ -2545,6 +2612,7 @@ int main(void)
 		
     DDRD = 0xFF;   //Relay driver 0:2, LCD 3:7
     DDRB |= (1 << PB2); //Relay for 20dB RX ATT
+    DDRB |= (1 << PB4); //AGC
              
 	//Pull-up Rs
 	PORTC = (1 << PC0); //Keys
@@ -2749,20 +2817,30 @@ int main(void)
 	            case 51:    split = m - 50;
 	                        show_split(split, backcolor);
 	                        break;
-	            
-	            case 60: 
-	            case 61:    ftmp = set_lo_frequencies(m - 60);
+	           
+	            case 60:    agc = 0;
+			                set_agc(agc);
+			                eeprom_write_byte((uint8_t*)142, rx_att);
+			                break;    
+			                       
+				case 61:    agc = 1;
+			                set_agc(agc);
+			                eeprom_write_byte((uint8_t*)142, rx_att);
+			                break;   
+			                
+	            case 70: 
+	            case 71:    ftmp = set_lo_frequencies(m - 70);
 	                        if(ftmp > 0)
 	                        {
-								f_lo[m - 60] = ftmp;     
+								f_lo[m - 70] = ftmp;     
 								set_lo(sideband);
 	                        }
 	                        break;
 	                        
-	            case 62:    tx_preset_adjust();
+	            case 72:    tx_preset_adjust();
 	                        break;
 	       
-   	            case 63:    show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0, split);     
+   	            case 73:    show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0, split);     
    	                        e_save();
 	                        break;
 			    
@@ -2825,7 +2903,7 @@ int main(void)
 	    }		
 		
         //VOLTS and TEMPERATURE measurement
-		if(runseconds10 > runseconds10volts + 50)
+		if(runseconds10 > runseconds10volts + 10)
 		{
 		    v1 = (double) get_adc(6) * 5 / 1024 * 6 * 10;
 		    adc_v = (int) v1;
