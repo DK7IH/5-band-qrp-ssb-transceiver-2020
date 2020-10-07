@@ -482,14 +482,12 @@ int get_keys(void);
 
 //MENU
 void lcd_drawbox(int, int, int, int);
-int menu0_get_xp(int);
-int menu0_get_yp(int);
 long menu0(long, int);
 long menu1(long, int, int);
-int navigate_thru_item_list(int, int, int);
 void print_menu_head(char*, int);
-void print_menu_item_list(int, int, int);
-void print_menu_item(char*, int, int);
+int navigate_thru_item_list(int, int, int);
+void print_menu_item_list(int, int);
+void print_menu_item(int, int, int);
 
 //MCP4725
 #define MCP4725_ADDR 0xC2 //Chinese board with A0 to VCC
@@ -2130,9 +2128,7 @@ int get_keys(void)
     return 0;
 }
 
-  //////////
- // MENU //
-//////////
+//Draw frame
 void lcd_drawbox(int x0, int y0, int x1, int y1)
 {
 	int t1;
@@ -2181,25 +2177,9 @@ void print_menu_head(char *head_str0, int m_items)
 	free(bstr);
 }
 
-void print_menu_item(char *m_str, int ypos, int invert)
-{
-	int xpos1 = 40;
-		
-	if(invert)
-	{
-		lcd_putstring(xpos1, (ypos + 3) * FONTHEIGHT, m_str, BLACK, WHITE, 1, 1);
-	}
-	else
-	{
-		lcd_putstring(xpos1, (ypos + 3) * FONTHEIGHT, m_str, WHITE, backcolor, 1, 1);
-	}	
-}
-	
-//Print the itemlist or single item
-void print_menu_item_list(int m, int item, int invert)
-{
-	
-	char *menu_str[MENUSTRINGS][MENUITEMS] =  {{"80m    ", "40m    ", "20m    ", "17m    ", "15m    "},
+void print_menu_item(int m, int i, int invert)
+{    
+    char *menu_str[MENUSTRINGS][MENUITEMS] =  {{"80m    ", "40m    ", "20m    ", "17m    ", "15m    "},
 		                                       {"OFF    ", "ON     ", "       ", "       ", "       "}, 
 		                                       {"VFO A  ", "VFO B  ", "       ", "       ", "       "}, 
 	                                           {"LSB    ", "USB    ", "       ", "       ", "       "},
@@ -2207,28 +2187,43 @@ void print_menu_item_list(int m, int item, int invert)
 	                                           {"OFF    ", "ON     ", "       ", "       ", "       "},
 	                                           {"FAST   ", "SLOW   ", "       ", "       ", "       "},
 	                                           {"SET LSB", "SET USB", "TX GAIN", "SLEEP  ", "TUNE   "}};
+	int xpos1 = 40;
+		
+	if(invert)
+	{
+		lcd_putstring(xpos1, (i + 3) * FONTHEIGHT, menu_str[m][i], BLACK, WHITE, 1, 1);
+	}
+	else
+	{
+		lcd_putstring(xpos1, (i + 3) * FONTHEIGHT, menu_str[m][i], WHITE, backcolor, 1, 1);
+	}	
+}
+	
+//Print the itemlist and higlight certain item (-1 = NO highlight)
+void print_menu_item_list(int menu, int item)
+{
 	int t1;
     
-    for(t1 = 0; t1 < menu_items[m] + 1; t1++)
+    for(t1 = 0; t1 < menu_items[menu] + 1; t1++)
 	{
 	    if(t1 == item)
 		{
-		    print_menu_item(menu_str[m][t1], t1, 1);   
+		    print_menu_item(menu, t1, 1);   
 		}
 		else
 		{
-		    print_menu_item(menu_str[m][t1], t1, 0);   
+		    print_menu_item(menu, t1, 0);   
 		}   
 	}
 }
 
 //Returns menu_pos if OK or -1 if aborted
-int navigate_thru_item_list(int m, int maxitems, int menu_pos)
+int navigate_thru_item_list(int menu, int maxitems, int high_item)
 {
-	int mpos = menu_pos;
+	int mpos = high_item;
 	int key;
 	
-	print_menu_item_list(m, mpos, 1);     //Write 1st entry in inverted color
+	print_menu_item_list(menu, high_item);     //Print item list an dhighlight defined item
 	
 	while(get_keys());
 	
@@ -2238,7 +2233,7 @@ int navigate_thru_item_list(int m, int maxitems, int menu_pos)
 	{
 		if(tuningknob > 2) //Turn CW
 		{
-			print_menu_item_list(m, mpos, 0); //Write old entry in normal color
+			print_menu_item(menu, mpos, 0); //Write old entry in normal color
 		    if(mpos < maxitems)
 		    {
 				mpos++;
@@ -2247,13 +2242,13 @@ int navigate_thru_item_list(int m, int maxitems, int menu_pos)
 			{
 				mpos = 0;
 			}
-			print_menu_item_list(m, mpos, 1); //Write new entry in reverse color
+			print_menu_item(menu, mpos, 1); //Write new entry in reverse color
 		    tuningknob = 0;
 		}
 
 		if(tuningknob < -2)  //Turn CCW
 		{    
-		    print_menu_item_list(m, mpos, 0); //Write old entry in normal color
+		    print_menu_item(menu, mpos, 0); //Write old entry in normal color
 		    if(mpos > 0)
 		    {
 				mpos--;
@@ -2262,12 +2257,12 @@ int navigate_thru_item_list(int m, int maxitems, int menu_pos)
 			{
 				mpos = maxitems;
 			}
-			print_menu_item_list(m, mpos, 1); //Write new entry in reverse color
+			print_menu_item(menu, mpos, 1); //Write new entry in reverse color
 		    tuningknob = 0;
 		}	
 		
 		//Preview settings
-		switch(m)
+		switch(menu)
 		{
 			case 1:	set_att(mpos);
 			        break;
@@ -2299,7 +2294,7 @@ int navigate_thru_item_list(int m, int maxitems, int menu_pos)
 	return -1;
 }	
 
-//Cal coordinates
+//Calculate coordinates
 int menu0_get_xp(int x)
 {
 	return x * FONTWIDTH * 8 + 2 * FONTWIDTH;
@@ -2343,38 +2338,43 @@ long menu0(long f, int c_vfo)
 	//Select item
 	while(!key)
 	{
-		if((tuningknob > 2) || (tuningknob < -2))
-		{
-			y = c / 2;
-			x = c - (y * 2);
-			lcd_putstring(menu0_get_xp(x), menu0_get_yp(y), menu_str[c], forecolor, backcolor, 1, 1);
-		}	
-			
+		
 		if(tuningknob > 2)  
 		{
 			if(c < (MENUSTRINGS - 1))
 			{   
+				y = c / 2;
+			    x = c - (y * 2);
+			    lcd_putstring(menu0_get_xp(x), menu0_get_yp(y), menu_str[c], forecolor, backcolor, 1, 1);
 				c++; 
-		    }    
+		        y = c / 2;
+			    x = c - (y * 2) + 2 * FONTWIDTH;
+			    lcd_putstring(menu0_get_xp(x), menu0_get_yp(y), menu_str[c], DARKBLUE, WHITE, 1, 1);
+			}   
+			tuningknob = 0;  
 		}	
 		
 		if(tuningknob < -2)  
-		{    
+		{   
 			if(c > 0)
 			{    
-		        c--;
-		    }    
+				y = c / 2;
+			    x = c - (y * 2);
+			    lcd_putstring(menu0_get_xp(x), menu0_get_yp(y), menu_str[c], forecolor, backcolor, 1, 1);
+			    c--;
+		        y = c / 2;
+			    x = c - (y * 2) + 2 * FONTWIDTH;
+			    lcd_putstring(menu0_get_xp(x), menu0_get_yp(y), menu_str[c], DARKBLUE, WHITE, 1, 1);
+			}    
+			tuningknob = 0; 
 		}	
-		
+		/*
 		if((tuningknob > 2) || (tuningknob < -2))
 		{
-			y = c / 2;
-			x = c - (y * 2) + 2 * FONTWIDTH;
-			lcd_putstring(menu0_get_xp(x), menu0_get_yp(y), menu_str[c], DARKBLUE, WHITE, 1, 1);
-			tuningknob = 0;
-			
-		    //lcd_putnumber(0, 0, c, -1, YELLOW, backcolor, 1, 1);
-		}	
+		    lcd_putnumber(0, 8 * FONTHEIGHT, c, -1, WHITE, backcolor, 1, 1);
+		    lcd_putnumber(30, 8 * FONTHEIGHT, c_old, -1, WHITE, backcolor, 1, 1);
+		}
+		* */	
 		
 		key = get_keys();
 		
@@ -2405,19 +2405,19 @@ long menu1(long f, int c_vfo, int menu)
 	print_menu_head(menu_str[menu], menu_items[menu]);	//Head outline of menu
 	switch(menu)
 	{           //Print item list in full with diff. preset values
-	    case 0: print_menu_item_list(menu, -1, cur_band);  //BAND
+	    case 0: print_menu_item_list(menu, cur_band);  //BAND
 	            break; 
-	    case 1: print_menu_item_list(menu, -1, rx_att);   //RX ATT
+	    case 1: print_menu_item_list(menu, rx_att);   //RX ATT
 	            break; 
-	    case 2: print_menu_item_list(menu, -1, cur_vfo);  //VFO
+	    case 2: print_menu_item_list(menu, cur_vfo);  //VFO
 	            break; 
-	    case 3: print_menu_item_list(menu, -1, sideband); //Sideband
+	    case 3: print_menu_item_list(menu, sideband); //Sideband
 	            break;
-	    case 5: print_menu_item_list(menu, -1, split);    //SPLIT
+	    case 5: print_menu_item_list(menu, split);    //SPLIT
                 break;           
-	    case 6: print_menu_item_list(menu, -1, agc);      //AGC
+	    case 6: print_menu_item_list(menu, agc);      //AGC
 	            break;                 
-	    default:print_menu_item_list(menu, -1, 0);         //RX SCAN + ADJUST
+	    default:print_menu_item_list(menu, 0);         //RX SCAN + ADJUST
 	}   
 	//Navigate thru item list
 	result = navigate_thru_item_list(menu, menu_items[menu], cur_band);
