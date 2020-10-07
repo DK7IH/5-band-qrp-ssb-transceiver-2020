@@ -2,12 +2,11 @@
 /*     TRX Mini5 5 band with ATMega328, Si5351,                  */
 /*                    ST7735 LCD and MCP4725 DAC                 */
 /*                  Bands: 80, 40, 20, 17 and 15m                */
-/*            http://radiotransmitter.wordpress.com              */
+/*                  http://dk7ih.de                              */
 ///////////////////////////////////////////////////////////////////
-/*                                                               */
-/*  Compiler:         GCC (GNU AVR C-Compiler)                   */
-/*  Author:           Peter Rachow  DK7IH                        */
-/*  Last update:      2020-10-03                                 */
+/*  Compiler:       GCC (GNU AVR C-Compiler)                     */
+/*  Author:         Peter Rachow  DK7IH                          */
+/*  Last update:    2020-10-07                                   */
 ///////////////////////////////////////////////////////////////////
 
   ////////////
@@ -19,6 +18,7 @@
 //relay decoder PD0, PD1, PD2 
 //LCD:          PD3, PD4, PD5, PD6, PD7
 //10dB RX ATT:  PB2
+//TUNE          PB3
 //AGC SET		PB4
 
 //I N P U T
@@ -35,10 +35,8 @@
 
 ////////////////////////////////////////////////////////////////////////
 
-//Si5351 oscillators usage#
-963,*-963,*-963,*-ed
-//OSC0 =*-q	ay/O *-/z +/- suzjhmnq	ay+.
-idenband offset
+//Si5351 oscillators usage
+//OSC0 = LO 9MHz +/- sidenband offset
 //OSC1 = VFO
 //OSC2: not used
 
@@ -165,7 +163,7 @@ char *oldbuf;
 int smax = 0;
 
 //Menu
-int menu_items[MENUSTRINGS] =  {4, 1, 1, 1, 2, 1, 1, 3}; 
+int menu_items[MENUSTRINGS] =  {4, 1, 1, 1, 2, 1, 1, 4}; 
 
 //TX amplifier preset values
 int tx_preset[6] = {0, 0, 0, 0, 0, 0};
@@ -441,6 +439,7 @@ void set_agc(int);
 
 //MISC
 void e_save(void);
+void tune(void);
 
 //I²C
 void twi_init(void);
@@ -483,7 +482,10 @@ int get_keys(void);
 
 //MENU
 void lcd_drawbox(int, int, int, int);
-long menux(long, int);
+int menu0_get_xp(int);
+int menu0_get_yp(int);
+long menu0(long, int);
+long menu1(long, int, int);
 int navigate_thru_item_list(int, int, int);
 void print_menu_head(char*, int);
 void print_menu_item_list(int, int, int);
@@ -1759,12 +1761,12 @@ void show_agc(int status)
 	if(status)
 	{
 		fcolor = LIGHTYELLOW;
-		lcd_putstring(xpos, ypos, "FAST", fcolor, backcolor, 1, 1);
+		lcd_putstring(xpos, ypos, "SLOW", fcolor, backcolor, 1, 1);
 	}
 	else
 	{
 	    fcolor = YELLOW;	
-		lcd_putstring(xpos, ypos, "SLOW", fcolor, backcolor, 1, 1);
+		lcd_putstring(xpos, ypos, "FAST", fcolor, backcolor, 1, 1);
 	}	
 }
 	
@@ -2204,7 +2206,7 @@ void print_menu_item_list(int m, int item, int invert)
 	                                           {"f0..f1 ", "VFO A/B", "THRESH ", "       ", "       "},
 	                                           {"OFF    ", "ON     ", "       ", "       ", "       "},
 	                                           {"FAST   ", "SLOW   ", "       ", "       ", "       "},
-	                                           {"SET LSB", "SET USB", "TX GAIN", "SLEEP  ", "       "}};
+	                                           {"SET LSB", "SET USB", "TX GAIN", "SLEEP  ", "TUNE   "}};
 	int t1;
     
     for(t1 = 0; t1 < menu_items[m] + 1; t1++)
@@ -2224,10 +2226,13 @@ void print_menu_item_list(int m, int item, int invert)
 int navigate_thru_item_list(int m, int maxitems, int menu_pos)
 {
 	int mpos = menu_pos;
+	int key;
 	
 	print_menu_item_list(m, mpos, 1);     //Write 1st entry in inverted color
 	
-	int key = get_keys();
+	while(get_keys());
+	
+	key = get_keys();
 	
     while(key == 0)
 	{
@@ -2282,8 +2287,6 @@ int navigate_thru_item_list(int m, int maxitems, int menu_pos)
 	}
 	set_lo(sideband);
 		
-	while(get_keys());
-	
 	switch(key)
 	{   case 1: return -1;       //Next menu!
 		        break;
@@ -2295,223 +2298,146 @@ int navigate_thru_item_list(int m, int maxitems, int menu_pos)
 	
 	return -1;
 }	
+
+//Cal coordinates
+int menu0_get_xp(int x)
+{
+	return x * FONTWIDTH * 8 + 2 * FONTWIDTH;
+}	
+
+int menu0_get_yp(int y)
+{
+	return (y + 3) * FONTHEIGHT;
+}	
+
+//Preselection menu
+long menu0(long f, int c_vfo)
+{
+	int x, y, c = 0;
+	int key = 0;
+	int forecolor = WHITE;
+	char menu_str[MENUSTRINGS][8] = {"BAND", "ATT ", "VFO ", "SIDE", "SCAN", "SPLT", "AGC ", "ADJ "};
+	
+	while(get_keys());
+	
+	lcd_cls0(backcolor);
+	
+	lcd_putstring(0, 1, "   MENU SELECT   ", YELLOW, LIGHTGRAY, 1, 1);
+	
+	//Draw init screen
+	for(y = 0; y < 4; y++)
+	{
+		for(x = 0; x < 2; x++)
+		{
+			lcd_putstring(menu0_get_xp(x), menu0_get_yp(y), menu_str[c], forecolor, backcolor, 1, 1);
+			c++;
+		}
+	}
+	
+	c = 0;
+	y = c / 2;
+	x = c - (y * 2);
+	lcd_drawbox(1, 3, 14, 6);
+	lcd_putstring(menu0_get_xp(x), menu0_get_yp(y), menu_str[c], backcolor, forecolor , 1, 1);
+		
+	//Select item
+	while(!key)
+	{
+		if((tuningknob > 2) || (tuningknob < -2))
+		{
+			y = c / 2;
+			x = c - (y * 2);
+			lcd_putstring(menu0_get_xp(x), menu0_get_yp(y), menu_str[c], forecolor, backcolor, 1, 1);
+		}	
 			
-long menux(long f, int c_vfo)
+		if(tuningknob > 2)  
+		{
+			if(c < (MENUSTRINGS - 1))
+			{   
+				c++; 
+		    }    
+		}	
+		
+		if(tuningknob < -2)  
+		{    
+			if(c > 0)
+			{    
+		        c--;
+		    }    
+		}	
+		
+		if((tuningknob > 2) || (tuningknob < -2))
+		{
+			y = c / 2;
+			x = c - (y * 2) + 2 * FONTWIDTH;
+			lcd_putstring(menu0_get_xp(x), menu0_get_yp(y), menu_str[c], DARKBLUE, WHITE, 1, 1);
+			tuningknob = 0;
+			
+		    //lcd_putnumber(0, 0, c, -1, YELLOW, backcolor, 1, 1);
+		}	
+		
+		key = get_keys();
+		
+		switch(key)
+		{
+			case 0: break;
+			case 2: return menu1(f, c_vfo, c);    
+			        break;
+			default:return -2;
+		}	        
+	}
+	
+	while(get_keys());		
+	
+	return -2; 
+}	
+	
+			
+long menu1(long f, int c_vfo, int menu)
 {
 	int result = 0;
-	int menu;
+	char menu_str[MENUSTRINGS][10] = {"BAND SET", "RX ATT", "VFO", "SIDEBAND", "SCAN", "SPLIT", "AGC", "ADJUST"};
 	
 	lcd_cls0(backcolor);	
 		
-	////////////////
-	//  BAND SEL  //
-	////////////////
 	while(get_keys());
-	menu = 0;
-	print_menu_head("BAND SET", menu_items[menu]);	//Head outline of menu
-	print_menu_item_list(menu, -1, cur_band);              //Print item list in full
 	
+	print_menu_head(menu_str[menu], menu_items[menu]);	//Head outline of menu
+	switch(menu)
+	{           //Print item list in full with diff. preset values
+	    case 0: print_menu_item_list(menu, -1, cur_band);  //BAND
+	            break; 
+	    case 1: print_menu_item_list(menu, -1, rx_att);   //RX ATT
+	            break; 
+	    case 2: print_menu_item_list(menu, -1, cur_vfo);  //VFO
+	            break; 
+	    case 3: print_menu_item_list(menu, -1, sideband); //Sideband
+	            break;
+	    case 5: print_menu_item_list(menu, -1, split);    //SPLIT
+                break;           
+	    case 6: print_menu_item_list(menu, -1, agc);      //AGC
+	            break;                 
+	    default:print_menu_item_list(menu, -1, 0);         //RX SCAN + ADJUST
+	}   
 	//Navigate thru item list
 	result = navigate_thru_item_list(menu, menu_items[menu], cur_band);
 	if(result > -1)
 	{
-		return(menu * 10 + result);
+	   return(menu * 10 + result);
 	}
 	else
 	{
-		switch(result)
-		{				
-		    case -3: return -3; //Quit menu         
-		             break;
-		    case -1: break;
-		}
-    }		
-    
-    lcd_cls1(32, 28, 112, 128, backcolor);
-	
-	/////////////
-	// RX ATT  //
-	/////////////
-	while(get_keys());
-	menu = 1;
-	print_menu_head("10dB RX ATT", menu_items[menu]);	//Head outline of menu
-	print_menu_item_list(menu, -1, rx_att);              //Print item list in full
-	
-	//Navigate thru item list
-	result = navigate_thru_item_list(menu, menu_items[menu], rx_att);
-	if(result > -1)
-	{
-		return(menu * 10 + result);
-	}
-	else
-	{
-		switch(result)
-		{				
-		    case -3: return -3; //Quit menu         
-		             break;
-		    case -1: break;
-		}
+	    switch(result)
+	    {				
+	        case -3: return -3; //Quit menu         
+	                 break;
+	        case -1: break;
+	    }
     }		
     
     lcd_cls1(32, 28, 112, 128, backcolor);
     
-	////////////////
-	// VFO FUNCS  //
-	////////////////
-	while(get_keys());
-	menu = 2;
-	print_menu_head("VFO SELECT", menu_items[menu]);	//Head outline of menu
-	print_menu_item_list(menu, -1, cur_vfo);              //Print item list in full
-	
-	//Navigate thru item list
-	result = navigate_thru_item_list(menu, menu_items[menu], cur_vfo);
-	if(result > -1)
-	{
-		return(menu * 10 + result);
-	}
-	else
-	{
-		switch(result)
-		{				
-		    case -3: return -3; //Quit menu         
-		             break;
-		    case -1: break;
-		}
-    }		
-    
-    lcd_cls1(32, 28, 112, 128, backcolor);
-    
-    ////////////////
-	// SIDEBAND  //
-	////////////////
-	while(get_keys());
-	menu = 3;
-	print_menu_head("SIDEBAND", menu_items[menu]);	//Head outline of menu
-	print_menu_item_list(menu, -1, sideband);              //Print item list in full
-	
-	//Navigate thru item list
-	result = navigate_thru_item_list(menu, menu_items[menu], sideband);
-	if(result > -1)
-	{
-		return(menu * 10 + result);
-	}
-	else
-	{
-		switch(result)
-		{				
-		    case -3: return -3; //Quit menu         
-		             break;
-		    case -1: break;
-		} 
-    }		
-    
-    lcd_cls1(32, 28, 112, 128, backcolor);
-    
-      ////////////////
-	 //    SCAN    //
-	////////////////
-	while(get_keys());
-	menu = 4;
-	print_menu_head("SCAN FUNC", menu_items[menu]);	//Head outline of menu
-	print_menu_item_list(menu, 0, 1);              //Print item list in full
-	
-	//Navigate thru item list
-	result = navigate_thru_item_list(menu, menu_items[menu], 0);
-	if(result > -1)
-	{
-		return(menu * 10 + result);
-	}
-	else
-	{
-		switch(result)
-		{				
-		    case -3: return -3; //Quit menu         
-		             break;
-		    case -1: break;
-		} 
-    }	
-    
-    lcd_cls1(32, 28, 112, 128, backcolor);
-    
-      ////////////////
-	 //    SPLIT    //
-	////////////////
-	while(get_keys());
-	menu = 5;
-	print_menu_head("SPLIT", menu_items[menu]);	//Head outline of menu
-	print_menu_item_list(menu, 0, 1);              //Print item list in full
-	
-	//Navigate thru item list
-	result = navigate_thru_item_list(menu, menu_items[menu], split);
-	if(result > -1)
-	{
-		return(menu * 10 + result);
-	}
-	else
-	{
-		switch(result)
-		{				
-		    case -3: return -3; //Quit menu         
-		             break;
-		    case -1: break;
-		} 
-    }	
-    
-    lcd_cls1(32, 28, 112, 128, backcolor);
-    
-    /////////////
-	//   AGC   //
-	/////////////
-	while(get_keys());
-	menu = 6;
-	print_menu_head("AGC HOLD", menu_items[menu]);	//Head outline of menu
-	print_menu_item_list(menu, -1, agc);              //Print item list in full
-	
-	//Navigate thru item list
-	result = navigate_thru_item_list(menu, menu_items[menu], agc);
-	if(result > -1)
-	{
-		return(menu * 10 + result);
-	}
-	else
-	{
-		switch(result)
-		{				
-		    case -3: return -3; //Quit menu         
-		             break;
-		    case -1: break;
-		}
-    }		
-    
-    lcd_cls1(32, 28, 112, 128, backcolor);
-    
-    
-	 ///////////////////////////////////
-	//   LO SET MODE AND TX PRESET   //
-	//////////////////////////////////
-	while(get_keys());
-	menu = 7;
-	print_menu_head("ADJUST", menu_items[menu]);	//Head outline of menu
-	print_menu_item_list(menu, -1, 0);              //Print item list in full
-	   
-	//Navigate thru item list
-	result = navigate_thru_item_list(menu, menu_items[menu], 0);
-					
-	if(result > -1)
-	{
-		return(menu * 10 + result);
-	}
-	else
-	{
-		switch(result)
-		{	
-		    case -3: return -3; //Quit menu         
-		             break;
-		    case -1: break;
-		}
-    }
-        
-	return -2; //Nothing to do in main()
+    return -2; //Nothing to do in main()
 }
 
 long set_lo_frequencies(int sb)
@@ -2585,6 +2511,19 @@ void e_save(void)
     show_msg("");           
 }
 
+//Set Tune line to 1 (PB3)
+void tune(void)
+{
+	int key = 0;
+	PORTB |= (1 << PB3);
+	while(get_keys());
+	while(!key)
+	{
+		key = get_keys();
+	}
+	PORTB &= ~(1 << PB3);
+}
+		
 int main(void)
 {
 	int t1;
@@ -2612,6 +2551,7 @@ int main(void)
 		
     DDRD = 0xFF;   //Relay driver 0:2, LCD 3:7
     DDRB |= (1 << PB2); //Relay for 20dB RX ATT
+    DDRB |= (1 << PB3); //TUNE
     DDRB |= (1 << PB4); //AGC
              
 	//Pull-up Rs
@@ -2741,7 +2681,7 @@ int main(void)
 			store_current_operation(cur_band, cur_vfo, sideband, f_vfo[cur_band][cur_vfo]);
 			
 			while(get_keys());
-			m = menux(f_vfo[cur_band][cur_vfo], cur_vfo);
+			m = menu0(f_vfo[cur_band][cur_vfo], cur_vfo);
 			switch(m)
 			{
 				case 0:    
@@ -2843,6 +2783,10 @@ int main(void)
    	            case 73:    show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0, split);     
    	                        e_save();
 	                        break;
+	                        
+	            case 74:    tune();
+	                        break;
+	                                
 			    
 		    }       
 		    show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0, split);     
