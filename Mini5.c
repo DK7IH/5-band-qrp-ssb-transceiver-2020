@@ -20,6 +20,7 @@
 //10dB RX ATT:  PB2
 //TUNE          PB3
 //AGC SET		PB4
+//TONE          PB5
 
 //I N P U T
 //---
@@ -66,6 +67,7 @@
 //Bytes 128..137: Two bytes for each band TX gain preset defintion
 //138: Scan threshold
 //140: Attenuator setting
+//142: Tone set
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -91,7 +93,7 @@
 #define MAXBANDS 5
 
 //MENU
-#define MENUSTRINGS 8
+#define MENUSTRINGS 9
 #define MENUITEMS 5
 
 //Interfrequency options
@@ -163,7 +165,7 @@ char *oldbuf;
 int smax = 0;
 
 //Menu
-int menu_items[MENUSTRINGS] =  {4, 1, 1, 1, 2, 1, 1, 4}; 
+int menu_items[MENUSTRINGS] =  {4, 1, 1, 1, 1, 2, 1, 1, 4}; 
 
 //TX amplifier preset values
 int tx_preset[6] = {0, 0, 0, 0, 0, 0};
@@ -182,6 +184,9 @@ int rx_att = 0;
 
 //AGC
 int agc = 0;
+
+//TONE (audio)
+int cur_tone = 0;
 	
 /////////////////////
 //Defines for Si5351
@@ -436,6 +441,7 @@ int get_s_value(void);
 long tune_frequency(long);
 void set_att(int);
 void set_agc(int);
+void set_tone(int);
 
 //MISC
 void e_save(void);
@@ -458,7 +464,7 @@ void show_sideband(int, int);
 void show_voltage(int);
 void store_vfo(int, int);
 void show_band(int, int);
-void show_txrx(int);
+void show_tone(int);
 void show_vfo(int, int);
 void show_split(int, int);
 void show_pa_temp(void);
@@ -482,6 +488,8 @@ int get_keys(void);
 
 //MENU
 void lcd_drawbox(int, int, int, int);
+int menu0_get_xp(int);
+int menu0_get_yp(int);
 long menu0(long, int);
 long menu1(long, int, int);
 void print_menu_head(char*, int);
@@ -1161,7 +1169,7 @@ void set_att(int status)
 	}	
 }	
 
-//Switch RX ATT on or off
+//Switch AGC fast or slow
 void set_agc(int status)
 {
 	if(status)
@@ -1171,6 +1179,19 @@ void set_agc(int status)
 	else
 	{
 		PORTB |= (1 << PB4);
+	}	
+}	
+
+//Switch AGC fast or slow
+void set_tone(int status)
+{
+	if(status)
+	{
+		PORTB &= ~(1 << PB5);
+	}
+	else
+	{
+		PORTB |= (1 << PB5);
 	}	
 }	
 
@@ -1575,7 +1596,7 @@ void show_all_data(long f, int cband, int s, int vfo, int volts, int mtr_scale, 
 	show_sideband(s, 0);
 	show_vfo(vfo, 0);
 	show_voltage(volts);
-	show_txrx(0);
+	show_tone(cur_tone);
 	draw_meter_scale(mtr_scale);
 	show_split(split_state, backcolor);
 	show_att(rx_att);
@@ -1809,18 +1830,18 @@ void show_voltage(int v1)
 	free(buffer);
 }
 
-void show_txrx(int status)
+void show_tone(int status)
 {
 	int xpos = 14 * FONTWIDTH, ypos = 0;
 		
 	//Write string to position
-	if(status)
+	if(!status)
 	{
-	    lcd_putstring(xpos, ypos, "TX", backcolor, LIGHTRED, 1, 1);;
+	    lcd_putstring(xpos, ypos, "LO", YELLOW, backcolor, 1, 1);;
 	}
 	else    
 	{
-	    lcd_putstring(xpos, ypos, "RX", LIGHTGREEN, backcolor, 1, 1);
+	    lcd_putstring(xpos, ypos, "HI", YELLOW2, backcolor, 1, 1);
 	}
 }	
 
@@ -2183,6 +2204,7 @@ void print_menu_item(int m, int i, int invert)
 		                                       {"OFF    ", "ON     ", "       ", "       ", "       "}, 
 		                                       {"VFO A  ", "VFO B  ", "       ", "       ", "       "}, 
 	                                           {"LSB    ", "USB    ", "       ", "       ", "       "},
+	                                           {"LO     ", "HI     ", "       ", "       ", "       "},
 	                                           {"f0..f1 ", "VFO A/B", "THRESH ", "       ", "       "},
 	                                           {"OFF    ", "ON     ", "       ", "       ", "       "},
 	                                           {"FAST   ", "SLOW   ", "       ", "       ", "       "},
@@ -2274,8 +2296,12 @@ int navigate_thru_item_list(int menu, int maxitems, int high_item)
 			        
 			case 3: set_lo(mpos);
 			        break;      
+			
+			case 4: set_tone(mpos);
+			        break;      
+		        
 		
-		    case 6: set_agc(mpos); //AGC
+		    case 7: set_agc(mpos); //AGC
 		            break;
 	    }
 	    key = get_keys();
@@ -2294,6 +2320,7 @@ int navigate_thru_item_list(int menu, int maxitems, int high_item)
 	return -1;
 }	
 
+
 //Calculate coordinates
 int menu0_get_xp(int x)
 {
@@ -2302,7 +2329,7 @@ int menu0_get_xp(int x)
 
 int menu0_get_yp(int y)
 {
-	return (y + 3) * FONTHEIGHT;
+	return (y + 2) * FONTHEIGHT;
 }	
 
 //Preselection menu
@@ -2311,7 +2338,7 @@ long menu0(long f, int c_vfo)
 	int x, y, c = 0;
 	int key = 0;
 	int forecolor = WHITE;
-	char menu_str[MENUSTRINGS][8] = {"BAND", "ATT ", "VFO ", "SIDE", "SCAN", "SPLT", "AGC ", "ADJ "};
+	char menu_str[MENUSTRINGS][8] = {"BAND", "ATT ", "VFO ", "SIDE", "TONE", "SCAN", "SPLT", "AGC ", "ADJ "};
 	
 	while(get_keys());
 	
@@ -2320,19 +2347,22 @@ long menu0(long f, int c_vfo)
 	lcd_putstring(0, 1, "   MENU SELECT   ", YELLOW, LIGHTGRAY, 1, 1);
 	
 	//Draw init screen
-	for(y = 0; y < 4; y++)
+	for(y = 0; y < 5; y++)
 	{
 		for(x = 0; x < 2; x++)
 		{
-			lcd_putstring(menu0_get_xp(x), menu0_get_yp(y), menu_str[c], forecolor, backcolor, 1, 1);
-			c++;
+			if(c < 9)
+			{
+			    lcd_putstring(menu0_get_xp(x), menu0_get_yp(y), menu_str[c], forecolor, backcolor, 1, 1);
+			    c++;
+			}    
 		}
 	}
 	
 	c = 0;
 	y = c / 2;
 	x = c - (y * 2);
-	lcd_drawbox(1, 3, 14, 6);
+	lcd_drawbox(1, 2, 14, 6);
 	lcd_putstring(menu0_get_xp(x), menu0_get_yp(y), menu_str[c], backcolor, forecolor , 1, 1);
 		
 	//Select item
@@ -2396,31 +2426,43 @@ long menu0(long f, int c_vfo)
 long menu1(long f, int c_vfo, int menu)
 {
 	int result = 0;
-	char menu_str[MENUSTRINGS][10] = {"BAND SET", "RX ATT", "VFO", "SIDEBAND", "SCAN", "SPLIT", "AGC", "ADJUST"};
+	char menu_str[MENUSTRINGS][10] = {"BAND SET", "RX ATT", "VFO", "SIDEBAND", "TONE", "SCAN", "SPLIT", "AGC", "ADJUST"};
 	
 	lcd_cls0(backcolor);	
 		
 	while(get_keys());
 	
+	//Navigate thru item list
+	
+	
 	print_menu_head(menu_str[menu], menu_items[menu]);	//Head outline of menu
 	switch(menu)
 	{           //Print item list in full with diff. preset values
 	    case 0: print_menu_item_list(menu, cur_band);  //BAND
+	            result = navigate_thru_item_list(menu, menu_items[menu], cur_band);
 	            break; 
 	    case 1: print_menu_item_list(menu, rx_att);   //RX ATT
+	            result = navigate_thru_item_list(menu, menu_items[menu], rx_att);
 	            break; 
 	    case 2: print_menu_item_list(menu, cur_vfo);  //VFO
+	            result = navigate_thru_item_list(menu, menu_items[menu], cur_vfo);	    
 	            break; 
 	    case 3: print_menu_item_list(menu, sideband); //Sideband
+	            result = navigate_thru_item_list(menu, menu_items[menu], sideband);	    
 	            break;
-	    case 5: print_menu_item_list(menu, split);    //SPLIT
+	    case 4: print_menu_item_list(menu, sideband); //Sideband
+	            result = navigate_thru_item_list(menu, menu_items[menu], cur_tone);	    
+	            break; 
+	    case 6: print_menu_item_list(menu, split);    //SPLIT
+	    	    result = navigate_thru_item_list(menu, menu_items[menu], split);
                 break;           
-	    case 6: print_menu_item_list(menu, agc);      //AGC
+	    case 7: print_menu_item_list(menu, agc);      //AGC
+	    	    result = navigate_thru_item_list(menu, menu_items[menu], agc);
 	            break;                 
 	    default:print_menu_item_list(menu, 0);         //RX SCAN + ADJUST
+	    	    result = navigate_thru_item_list(menu, menu_items[menu], -1);
 	}   
-	//Navigate thru item list
-	result = navigate_thru_item_list(menu, menu_items[menu], cur_band);
+	
 	if(result > -1)
 	{
 	   return(menu * 10 + result);
@@ -2551,8 +2593,9 @@ int main(void)
 		
     DDRD = 0xFF;   //Relay driver 0:2, LCD 3:7
     DDRB |= (1 << PB2); //Relay for 20dB RX ATT
-    DDRB |= (1 << PB3); //TUNE
+    DDRB |= (1 << PB3); //TUNE circuit to switch TX and Audio generator on
     DDRB |= (1 << PB4); //AGC
+    DDRB |= (1 << PB5); //TONE HI/LO
              
 	//Pull-up Rs
 	PORTC = (1 << PC0); //Keys
@@ -2645,6 +2688,15 @@ int main(void)
 		rx_att = 0;
 	}
     set_att(rx_att);
+    
+    //TONE set
+    cur_tone = eeprom_read_byte((uint8_t*)142);          	
+    if(cur_tone < 0 || cur_tone > 1)
+    {
+		cur_tone = 0;
+	}
+    set_tone(cur_tone);
+
     show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0, split);   
     
     //Load TX preset values
@@ -2688,7 +2740,7 @@ int main(void)
 	            case 1: 
 	            case 2: 
 	            case 3:
-	            case 4:     cur_band = m;
+	            case 4:     cur_band = m;  //BAND
 	                        set_band(cur_band); //Band changed
 				            if(is_mem_freq_ok(load_frequency(cur_vfo, cur_band), cur_band))
 				            {
@@ -2705,7 +2757,7 @@ int main(void)
     
 			                break;
 			                
-			    case 10:    rx_att = 0;
+			    case 10:    rx_att = 0; //ATT
 			                set_att(rx_att);
 			                eeprom_write_byte((uint8_t*)140, rx_att);
 			                break;    
@@ -2714,7 +2766,7 @@ int main(void)
 			                set_att(rx_att);
 			                eeprom_write_byte((uint8_t*)140, rx_att);
 			                break;  
-	            case 20: 
+	            case 20:    //VFO
 	            case 21:    cur_vfo = m - 20;
 	                        show_vfo(cur_vfo, 0);
 	                        f_vfo[cur_band][cur_vfo] = load_frequency(cur_vfo, cur_band); //VFO changed
@@ -2732,8 +2784,14 @@ int main(void)
 	                        set_vfo(f_vfo[cur_band][cur_vfo] + f_lo[sideband]);    			
 	                        set_lo(sideband);
 	                        break;
+	            
+	            case 40:    //TONE
+	            case 41:    cur_tone = m - 40;     
+	                        set_tone(cur_tone);
+	                        eeprom_write_byte((uint8_t*)142, cur_tone);
+	                        break;
 	                        
-	            case 40:    ftmp = scan_f0_f1();
+	            case 50:    ftmp = scan_f0_f1(); //SCAN
 	                        if(is_mem_freq_ok(ftmp, cur_band)) //Freq OK => set VFO
 	                        {
 								f_vfo[cur_band][cur_vfo] = ftmp;
@@ -2741,7 +2799,7 @@ int main(void)
 							}	
 							break;         
 							
-				case 41:    ftmp = scan_vfoa_vfob();
+				case 51:    ftmp = scan_vfoa_vfob();
 				            if(ftmp & (0xFFFFFFF))
 				            {
 								cur_vfo = (ftmp >> 28);
@@ -2751,40 +2809,40 @@ int main(void)
 							}	
 							break;
 	                        
-	            case 42:    set_scan_threshold();
+	            case 52:    set_scan_threshold();
 	                        break;              
-	            case 50:    
-	            case 51:    split = m - 50;
+	            case 60:    
+	            case 61:    split = m - 60;
 	                        show_split(split, backcolor);
 	                        break;
 	           
-	            case 60:    agc = 0;
+	            case 70:    agc = 0;
 			                set_agc(agc);
 			                eeprom_write_byte((uint8_t*)142, rx_att);
 			                break;    
 			                       
-				case 61:    agc = 1;
+				case 71:    agc = 1;
 			                set_agc(agc);
 			                eeprom_write_byte((uint8_t*)142, rx_att);
 			                break;   
 			                
-	            case 70: 
-	            case 71:    ftmp = set_lo_frequencies(m - 70);
+	            case 80: 
+	            case 81:    ftmp = set_lo_frequencies(m - 80);
 	                        if(ftmp > 0)
 	                        {
-								f_lo[m - 70] = ftmp;     
+								f_lo[m - 80] = ftmp;     
 								set_lo(sideband);
 	                        }
 	                        break;
 	                        
-	            case 72:    tx_preset_adjust();
+	            case 82:    tx_preset_adjust();
 	                        break;
 	       
-   	            case 73:    show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0, split);     
+   	            case 83:    show_all_data(f_vfo[cur_band][cur_vfo], cur_band, sideband, cur_vfo, adc_v, 0, split);     
    	                        e_save();
 	                        break;
 	                        
-	            case 74:    tune();
+	            case 84:    tune();
 	                        break;
 	                                
 			    
@@ -2871,8 +2929,7 @@ int main(void)
 			    {
 					txrx = 1;
 				    draw_meter_scale(1);	 
-			        show_txrx(1);
-			        			        
+			        			        			        
 			        if(split)
 			        {
 						if(cur_vfo == 0)
@@ -2896,8 +2953,7 @@ int main(void)
 			    {
 				    txrx = 0;
 				    draw_meter_scale(0);
-				    show_txrx(0);
-			        
+				    			        
 			        if(split)
 			        {
 						if(cur_vfo == 0)
