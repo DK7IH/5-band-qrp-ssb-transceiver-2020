@@ -2460,7 +2460,7 @@ long menu1(long f, int c_vfo, int menu)
 	    	    result = navigate_thru_item_list(menu, menu_items[menu], agc);
 	            break;                 
 	    default:print_menu_item_list(menu, 0);         //RX SCAN + ADJUST
-	    	    result = navigate_thru_item_list(menu, menu_items[menu], -1);
+	    	    result = navigate_thru_item_list(menu, menu_items[menu], 0);
 	}   
 	
 	if(result > -1)
