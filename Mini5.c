@@ -97,7 +97,7 @@
 #define MENUITEMS 5
 
 //Interfrequency options
-#define IFOPTION 2
+#define IFOPTION 0
 
 #if (IFOPTION == 0)
     //9MHz Filter 9XMF24D (box73.de)
@@ -111,8 +111,8 @@
 #if (IFOPTION == 1)
     //10.695MHz Filter 10M04DS (ex CB TRX "President Jackson")
     #define INTERFREQUENCY 10695000 //fLSB 10692100, fUSB 10697700
-    #define IF_LSB 10694510
-    #define IF_USB 10697550
+    #define IF_LSB 10692.400
+    #define IF_USB 10697910
     #define IF_CENTER 10695000
     long fbfo[] = {IF_LSB, IF_USB, 0}; 
 #endif  
@@ -122,10 +122,36 @@
     #define INTERFREQUENCY 10700000 
     #define IF_LSB 10698150
     #define IF_USB 10702520
-    #define IF_CENTER -107000000
+    #define IF_CENTER 10700000
     long fbfo[] = {IF_LSB, IF_USB, 0}; 
 #endif  
 
+#if (IFOPTION == 3)
+    //Ladder filter 9832 NARVA
+    #define INTERFREQUENCY 9832000 //fLSB 10692100, fUSB 10697700
+    #define IF_LSB 98331320
+    #define IF_USB 9835180
+    #define IF_CENTER 9832000
+    long fbfo[] = {IF_LSB, IF_USB, 0}; 
+#endif  
+
+#if (IFOPTION == 4)
+    //Ladder filter 9832 NARVA
+    #define INTERFREQUENCY 9830000 
+    #define IF_LSB 98311320
+    #define IF_USB 9833180
+    #define IF_CENTER 9830000
+    long fbfo[] = {IF_LSB, IF_USB, 0}; 
+#endif  
+
+#if (IFOPTION == 5)
+    //Ladder filter 9832 NARVA
+    #define INTERFREQUENCY 10000000
+    #define IF_LSB 9998500
+    #define IF_USB 10001500
+    #define IF_CENTER 10000000
+    long fbfo[] = {IF_LSB, IF_USB, 0}; 
+#endif  
 
 /////////////////////////////////////
 //   Global constants & variables
@@ -151,9 +177,9 @@ long f_lo[] = {IF_LSB, IF_USB, IF_CENTER}; //LSB/USB LO FREQUENCIES for 9MHz fil
 
 int sideband = 1; //Current sideband USB
 int std_sideband [] = {0, 0, 1, 1, 1}; //Standard sideband for each rf band
-long c_freq[] =  {3650000, 7120000, 14180000, 18100000, 21290000};
-long band_f0[] = {3490000, 6990000, 13990000, 18060000, 20990000};  //Edge frequency I
-long band_f1[] = {3810000, 7210000, 14360000, 18170000, 21460000};  //Edge frequency II 
+long c_freq[] =  {3650000, 7120000, 14180000, 18100000, 21290000};  //Center freq
+long band_f0[] = {3500000, 7000000, 14000000, 18065000, 21000000};  //Edge frequency I
+long band_f1[] = {3800000, 7200000, 14350000, 18165000, 21465000};  //Edge frequency II 
 
 //Band data
 int cur_band;
@@ -436,7 +462,7 @@ long set_lo_frequencies(int);
 int calc_tuningfactor(void);
 int get_adc(int);
 int get_pa_temp(void);
-int is_mem_freq_ok(long, int);
+int is_band_freq(long, int);
 int get_s_value(void);
 long tune_frequency(long);
 void set_att(int);
@@ -1121,7 +1147,7 @@ void set_band(int bcode)
 }	
 
 //Check if freq is in 20m-band
-int is_mem_freq_ok(long f, int cband)
+int is_band_freq(long f, int cband)
 {
 	
 	if(f >= band_f0[cband] && f <= band_f1[cband])
@@ -1607,6 +1633,16 @@ void show_frequency1(long f, int csize)
 {
 	int x;
 	int y = 50;
+	int fcolor;
+	
+	if(is_band_freq(f, cur_band))
+	{
+		fcolor = WHITE;
+	}
+	else	
+	{
+		fcolor = LIGHTRED;
+	}
 	
 	if(f < 10000000)
 	{
@@ -1625,11 +1661,11 @@ void show_frequency1(long f, int csize)
 	{
 		if(csize == 1)
 		{
-		    lcd_putnumber(x, y, f, 3, WHITE, backcolor, csize, csize);
+		    lcd_putnumber(x, y, f, 3, fcolor, backcolor, csize, csize);
 		}    
 		else
 		{
-		    lcd_putnumber(x, y, f / 100, 1, WHITE, backcolor, csize, csize);
+		    lcd_putnumber(x, y, f / 100, 1, fcolor, backcolor, csize, csize);
 		}
 	}	    
 
@@ -2655,7 +2691,7 @@ int main(void)
     }
     //QRG
 	f_vfo[cur_band][cur_vfo] = load_frequency(cur_vfo, cur_band);  
-	if(!is_mem_freq_ok(f_vfo[cur_band][cur_vfo], cur_band))
+	if(!is_band_freq(f_vfo[cur_band][cur_vfo], cur_band))
 	{
 	    f_vfo[cur_band][cur_vfo] = c_freq[cur_band];
 	}
@@ -2742,7 +2778,7 @@ int main(void)
 	            case 3:
 	            case 4:     cur_band = m;  //BAND
 	                        set_band(cur_band); //Band changed
-				            if(is_mem_freq_ok(load_frequency(cur_vfo, cur_band), cur_band))
+				            if(is_band_freq(load_frequency(cur_vfo, cur_band), cur_band))
 				            {
 						        f_vfo[cur_band][cur_vfo] = load_frequency(cur_vfo, cur_band); 	 
 						    }    
@@ -2770,7 +2806,7 @@ int main(void)
 	            case 21:    cur_vfo = m - 20;
 	                        show_vfo(cur_vfo, 0);
 	                        f_vfo[cur_band][cur_vfo] = load_frequency(cur_vfo, cur_band); //VFO changed
-                            if(!is_mem_freq_ok(f_vfo[cur_band][cur_vfo], cur_band))	            
+                            if(!is_band_freq(f_vfo[cur_band][cur_vfo], cur_band))	            
                             {
 						        f_vfo[cur_band][cur_vfo] = c_freq[cur_band];
 						    }  
@@ -2792,7 +2828,7 @@ int main(void)
 	                        break;
 	                        
 	            case 50:    ftmp = scan_f0_f1(); //SCAN
-	                        if(is_mem_freq_ok(ftmp, cur_band)) //Freq OK => set VFO
+	                        if(is_band_freq(ftmp, cur_band)) //Freq OK => set VFO
 	                        {
 								f_vfo[cur_band][cur_vfo] = ftmp;
 								set_vfo(f_vfo[cur_band][cur_vfo] + f_lo[sideband]);   
@@ -2890,7 +2926,7 @@ int main(void)
 			}	
 			f_vfo[cur_band][cur_vfo] = load_frequency(cur_vfo, cur_band); 
 			
-			if(!is_mem_freq_ok(f_vfo[cur_band][cur_vfo], cur_band))
+			if(!is_band_freq(f_vfo[cur_band][cur_vfo], cur_band))
 			{
 				f_vfo[cur_band][cur_vfo] = c_freq[cur_band];
 			}	
